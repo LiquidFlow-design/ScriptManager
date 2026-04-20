@@ -1,2 +1,2 @@
-# ScriptManager
+# ScripteManager
 

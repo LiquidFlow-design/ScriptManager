@@ -1,0 +1,79 @@
+{
+  "name": "ps-script-manager",
+  "version": "2.0.0",
+  "description": "PS Script Manager - PowerShell Script Verwaltung",
+  "main": "main.js",
+  "author": "Tobias Scherer",
+  "license": "MIT",
+  "scripts": {
+    "start":   "electron .",
+    "build":   "electron-builder --win --x64"
+  },
+  "dependencies": {
+    "sql.js":           "^1.14.1",
+    "electron-updater": "^6.8.3"
+  },
+  "devDependencies": {
+    "electron":         "^41.2.1",
+    "electron-builder": "^26.8.2"
+  },
+  "overrides": {
+    "glob":   "^13.0.6",
+    "rimraf": "^5.0.0"
+  },
+  "build": {
+    "appId":       "de.liquidflow.scriptmanager",
+    "productName": "PS Script Manager",
+    "copyright":   "© 2025 Tobias Scherer",
+    "icon":        "assets/icon.ico",
+
+    "files": [
+      "main.js",
+      "preload.js",
+      "database/db.js",
+      "renderer/index.html",
+      "assets/**",
+      "node_modules/**"
+    ],
+
+    "win": {
+      "target": "nsis",
+      "requestedExecutionLevel": "requireAdministrator"
+    },
+
+    "nsis": {
+      "oneClick":                          false,
+      "allowToChangeInstallationDirectory": true,
+      "installerIcon":                     "assets/icon.ico",
+      "uninstallerIcon":                   "assets/icon.ico",
+      "installerHeaderIcon":               "assets/icon.ico",
+      "createDesktopShortcut":             true,
+      "createStartMenuShortcut":           true,
+      "shortcutName":                      "PS Script Manager",
+      "runAfterFinish":                    true,
+      "deleteAppDataOnUninstall":          false
+    },
+
+    "publish": {
+      "provider": "github",
+      "owner":    "LiquidFlow-design",
+      "repo":     "Scripte"
+    },
+
+    "extraResources": [
+      {
+        "from":   "lib/",
+        "to":     "lib/",
+        "filter": ["**/*.ps1"]
+      },
+      {
+        "from": "node_modules/sql.js/dist/sql-wasm.wasm",
+        "to":   "sql-wasm.wasm"
+      }
+    ],
+
+    "directories": {
+      "output": "dist"
+    }
+  }
+}

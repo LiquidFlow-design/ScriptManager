@@ -1,0 +1,1189 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy"
+      content="default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'self' 'unsafe-inline';">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PS Script Manager</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0d0d14;--surface:#13131f;--card:#181828;--border:#252540;--accent1:#7c6af7;--accent2:#c084fc;--accent3:#38bdf8;--green:#34d399;--red:#f87171;--yellow:#fbbf24;--text:#e2e8f0;--muted:#64748b;--radius:14px;}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--text);height:100vh;overflow:hidden;user-select:none;}input,textarea,select,[contenteditable]{user-select:text!important;-webkit-user-select:text!important;pointer-events:auto!important;}.modal-overlay,.terminal-overlay,.editor-overlay{-webkit-app-region:no-drag!important;user-select:text;}.modal,.terminal-window,.editor-window{-webkit-app-region:no-drag!important;user-select:text;}.modal-body,.editor-body,.terminal-body,.terminal-input-row,.modal-footer,.editor-footer{-webkit-app-region:no-drag!important;}
+body::before{content:'';position:fixed;inset:0;pointer-events:none;background:radial-gradient(ellipse 60% 40% at 20% 10%,rgba(124,106,247,.12) 0%,transparent 60%),radial-gradient(ellipse 50% 50% at 80% 80%,rgba(192,132,252,.08) 0%,transparent 60%);}
+/* TITLEBAR */
+.titlebar{height:38px;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 12px;-webkit-app-region:drag;flex-shrink:0;z-index:100;}
+.titlebar-title{font-size:12px;font-weight:700;color:var(--muted);font-family:'JetBrains Mono',monospace;flex:1;pointer-events:none;}
+.titlebar-controls{display:flex;gap:6px;-webkit-app-region:no-drag;}
+.tb-btn{width:28px;height:22px;border:none;border-radius:5px;cursor:pointer;font-size:11px;display:flex;align-items:center;justify-content:center;transition:background .15s;}
+.tb-min,.tb-max{background:rgba(255,255,255,.06);color:var(--muted);}
+.tb-cls{background:rgba(248,113,113,.15);color:var(--red);}
+.tb-btn:hover.tb-min,.tb-btn:hover.tb-max{background:rgba(255,255,255,.12);color:var(--text);}
+.tb-btn:hover.tb-cls{background:rgba(248,113,113,.35);}
+/* LAYOUT */
+.shell{display:flex;height:calc(100vh - 38px);}
+/* SIDEBAR */
+.sidebar{width:230px;flex-shrink:0;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;padding:20px 0;}
+.logo{display:flex;align-items:center;gap:10px;padding:0 20px 24px;border-bottom:1px solid var(--border);}
+.logo-icon{width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,var(--accent1),var(--accent2));display:flex;align-items:center;justify-content:center;font-size:18px;}
+.logo-text{font-weight:800;font-size:16px;}.logo-sub{font-size:10px;color:var(--muted);font-family:'JetBrains Mono',monospace;}
+.nav{flex:1;padding:16px 12px;display:flex;flex-direction:column;gap:4px;}
+.nav-section{font-size:10px;color:var(--muted);letter-spacing:1.5px;text-transform:uppercase;padding:10px 8px 4px;}
+.nav-item{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:9px;cursor:pointer;font-size:13px;font-weight:600;color:var(--muted);transition:all .2s;}
+.nav-item:hover{background:var(--card);color:var(--text);}.nav-item.active{background:rgba(124,106,247,.18);color:var(--accent1);}
+.nav-item .icon{font-size:16px;width:20px;text-align:center;}
+.nav-badge{margin-left:auto;background:var(--accent1);color:#fff;font-size:10px;padding:2px 7px;border-radius:20px;font-weight:700;}
+.sidebar-footer{padding:16px 20px;border-top:1px solid var(--border);font-size:11px;color:var(--muted);font-family:'JetBrains Mono',monospace;}
+.status-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--green);margin-right:6px;box-shadow:0 0 6px var(--green);}
+/* MAIN */
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden;}
+.topbar{height:60px;display:flex;align-items:center;gap:12px;padding:0 24px;border-bottom:1px solid var(--border);background:rgba(13,13,20,.8);backdrop-filter:blur(12px);flex-shrink:0;}
+.topbar-title{font-size:18px;font-weight:800;flex:1;}.topbar-title span{color:var(--accent1);}
+/* BUTTONS */
+.btn{display:flex;align-items:center;gap:7px;padding:8px 16px;border-radius:9px;border:none;cursor:pointer;font-family:'Syne',sans-serif;font-size:13px;font-weight:700;transition:all .2s;}
+.btn-primary{background:linear-gradient(135deg,var(--accent1),var(--accent2));color:#fff;}
+.btn-primary:hover{transform:translateY(-1px);box-shadow:0 6px 20px rgba(124,106,247,.4);}
+.btn-ghost{background:var(--card);color:var(--text);border:1px solid var(--border);}
+.btn-ghost:hover{border-color:var(--accent1);color:var(--accent1);}
+.btn-danger{background:rgba(248,113,113,.15);color:var(--red);border:1px solid rgba(248,113,113,.3);}
+.btn-danger:hover{background:rgba(248,113,113,.25);}
+.btn-green{background:rgba(52,211,153,.15);color:var(--green);border:1px solid rgba(52,211,153,.3);}
+.btn-green:hover{background:rgba(52,211,153,.25);}
+.btn-sm{padding:5px 11px;font-size:12px;}.btn:disabled{opacity:.4;cursor:default;transform:none!important;}
+.search-box{display:flex;align-items:center;gap:8px;background:var(--card);border:1px solid var(--border);border-radius:9px;padding:7px 14px;width:220px;}
+.search-box input{background:none;border:none;outline:none;color:var(--text);font-family:'Syne',sans-serif;font-size:13px;flex:1;}
+.search-box input::placeholder{color:var(--muted);}
+/* CONTENT */
+.content{flex:1;overflow-y:auto;padding:24px 28px;display:flex;flex-direction:column;gap:20px;}
+.content::-webkit-scrollbar{width:6px;}.content::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
+/* PAGES */
+.page{display:none;flex-direction:column;gap:20px;flex:1;}.page.active{display:flex;}
+/* STATS */
+.stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;}
+.stat-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:16px 20px;position:relative;overflow:hidden;}
+.stat-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--accent1),var(--accent2));}
+.stat-label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;}
+.stat-value{font-size:26px;font-weight:800;line-height:1;}.stat-sub{font-size:11px;color:var(--muted);margin-top:4px;}
+.stat-icon{position:absolute;right:16px;top:50%;transform:translateY(-50%);font-size:28px;opacity:.15;}
+/* PANELS */
+.panels{display:grid;grid-template-columns:1fr 360px;gap:20px;flex:1;min-height:0;}
+.panel{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);display:flex;flex-direction:column;overflow:hidden;}
+.panel-header{display:flex;align-items:center;gap:10px;padding:16px 20px;border-bottom:1px solid var(--border);flex-shrink:0;}
+.panel-title{font-weight:800;font-size:14px;flex:1;}.panel-actions{display:flex;gap:8px;}
+/* PILLS */
+.cat-pills{display:flex;gap:8px;flex-wrap:wrap;padding:12px 20px;border-bottom:1px solid var(--border);flex-shrink:0;}
+.pill{padding:5px 14px;border-radius:20px;font-size:12px;font-weight:700;border:1px solid var(--border);cursor:pointer;transition:all .2s;color:var(--muted);}
+.pill:hover{border-color:var(--accent1);color:var(--accent1);}.pill.active{background:rgba(124,106,247,.2);border-color:var(--accent1);color:var(--accent1);}
+/* SCRIPT LIST */
+.script-list{flex:1;overflow-y:auto;}
+.script-list::-webkit-scrollbar{width:4px;}.script-list::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px;}
+.script-row{display:grid;grid-template-columns:28px 1fr 120px 90px 100px 120px;align-items:center;gap:12px;padding:12px 20px;border-bottom:1px solid rgba(37,37,64,.5);transition:background .15s;}
+.script-row:hover{background:rgba(124,106,247,.05);}.script-row.selected{background:rgba(124,106,247,.1);border-left:3px solid var(--accent1);}
+.row-status{width:8px;height:8px;border-radius:50%;}.row-status.on{background:var(--green);box-shadow:0 0 5px var(--green);}.row-status.off{background:var(--muted);}
+.row-name{font-weight:700;font-size:13px;}.row-desc{font-size:11px;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.cat-badge{display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;background:rgba(124,106,247,.15);color:var(--accent1);}
+.row-time{font-size:11px;color:var(--muted);font-family:'JetBrains Mono',monospace;}
+.row-actions{display:flex;gap:4px;}
+.icon-btn{width:28px;height:28px;border-radius:7px;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px;transition:all .2s;background:transparent;}
+.icon-btn:hover{background:var(--border);}.icon-btn.run-btn:hover{background:rgba(52,211,153,.2);}
+.icon-btn.edit-btn:hover{background:rgba(124,106,247,.2);}.icon-btn.code-btn:hover{background:rgba(56,189,248,.2);}
+.icon-btn.del-btn:hover{background:rgba(248,113,113,.2);}
+.list-header{display:grid;grid-template-columns:28px 1fr 120px 90px 100px 120px;gap:12px;padding:8px 20px;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;border-bottom:1px solid var(--border);flex-shrink:0;}
+/* DETAIL */
+.detail-body{flex:1;overflow-y:auto;padding:20px;display:flex;flex-direction:column;gap:16px;}
+.detail-empty{flex:1;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:8px;color:var(--muted);font-size:13px;}
+.detail-field{display:flex;flex-direction:column;gap:5px;}
+.detail-label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;}
+.detail-value{font-size:13px;font-weight:600;}.detail-actions{display:flex;gap:8px;flex-wrap:wrap;}
+/* TERMINAL */
+.terminal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);backdrop-filter:blur(6px);z-index:2000;align-items:center;justify-content:center;}
+.terminal-overlay.open{display:flex;}
+.terminal-window{width:860px;max-width:95vw;height:580px;background:#0a0a10;border:1px solid var(--border);border-radius:16px;display:flex;flex-direction:column;box-shadow:0 24px 80px rgba(0,0,0,.8);}
+.terminal-header{display:flex;align-items:center;gap:10px;padding:11px 16px;background:var(--surface);border-bottom:1px solid var(--border);border-radius:16px 16px 0 0;flex-shrink:0;}
+.terminal-title{font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:600;flex:1;color:var(--accent3);}
+.terminal-status{font-size:11px;font-family:'JetBrains Mono',monospace;padding:3px 10px;border-radius:20px;}
+.terminal-status.running{background:rgba(251,191,36,.15);color:var(--yellow);}
+.terminal-status.ok{background:rgba(52,211,153,.15);color:var(--green);}
+.terminal-status.err{background:rgba(248,113,113,.15);color:var(--red);}
+.terminal-body{flex:1;overflow-y:auto;padding:14px 16px;font-family:'JetBrains Mono',monospace;font-size:12px;line-height:1.75;color:#c8d3f5;}
+.terminal-body::-webkit-scrollbar{width:5px;}.terminal-body::-webkit-scrollbar-thumb{background:rgba(255,255,255,.1);border-radius:3px;}
+.t-line{white-space:pre-wrap;word-break:break-all;}.t-line.stderr{color:var(--red);}.t-line.info{color:var(--muted);}.t-line.ok{color:var(--green);}
+/* Terminal Eingabe-Zeile */
+.terminal-input-row{display:flex;align-items:center;gap:8px;padding:8px 14px;border-top:1px solid rgba(37,37,64,.6);background:rgba(13,13,20,.5);flex-shrink:0;}
+.terminal-prompt{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--accent1);white-space:nowrap;}
+.terminal-input{flex:1;background:transparent;border:none;outline:none;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:12px;}
+.terminal-input::placeholder{color:var(--muted);}
+.terminal-footer{padding:8px 16px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end;flex-shrink:0;}
+/* EDITOR */
+.editor-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);backdrop-filter:blur(6px);z-index:2000;align-items:center;justify-content:center;}
+.editor-overlay.open{display:flex;}
+.editor-window{width:900px;max-width:96vw;height:620px;background:var(--card);border:1px solid var(--border);border-radius:16px;display:flex;flex-direction:column;box-shadow:0 24px 80px rgba(0,0,0,.8);}
+.editor-header{display:flex;align-items:center;gap:10px;padding:14px 20px;background:var(--surface);border-bottom:1px solid var(--border);border-radius:16px 16px 0 0;flex-shrink:0;}
+.editor-title{font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:var(--accent3);flex:1;}
+.editor-body{flex:1;overflow:hidden;position:relative;}
+.editor-textarea{width:100%;height:100%;background:#0d0d14;color:#c8d3f5;font-family:'JetBrains Mono',monospace;font-size:12.5px;line-height:1.7;padding:16px 20px;border:none;outline:none;resize:none;tab-size:4;}
+.editor-footer{padding:10px 20px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end;align-items:center;flex-shrink:0;}
+.editor-status{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);flex:1;}
+/* MODAL */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);backdrop-filter:blur(4px);z-index:1000;align-items:center;justify-content:center;}
+.modal-overlay.open{display:flex;}
+.modal{background:var(--card);border:1px solid var(--border);border-radius:16px;width:520px;max-width:90vw;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.5);}
+.modal-header{padding:20px 24px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;}
+.modal-title{font-weight:800;font-size:16px;flex:1;}
+.modal-body{padding:20px 24px;flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:14px;}
+.modal-footer{padding:16px 24px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end;}
+.form-group{display:flex;flex-direction:column;gap:6px;}
+.form-label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;}
+.form-input{background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:9px 13px;color:var(--text);font-family:'Syne',sans-serif;font-size:13px;outline:none;transition:border-color .2s;}
+.form-input:focus{border-color:var(--accent1);}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.form-check{display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;}
+.form-check input{accent-color:var(--accent1);width:16px;height:16px;cursor:pointer;}
+/* SCAN-BANNER */
+.scan-banner{background:rgba(56,189,248,.08);border:1px solid rgba(56,189,248,.3);border-radius:10px;padding:12px 16px;display:flex;align-items:center;gap:12px;font-size:13px;}
+.scan-banner .scan-count{font-weight:800;color:var(--accent3);}
+/* LOGS */
+.log-table{width:100%;border-collapse:collapse;font-size:12px;}
+.log-table th{text-align:left;padding:8px 12px;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;border-bottom:1px solid var(--border);}
+.log-table td{padding:9px 12px;border-bottom:1px solid rgba(37,37,64,.4);font-family:'JetBrains Mono',monospace;}
+.log-table tr:hover td{background:rgba(124,106,247,.05);}
+.log-ok{color:var(--green);}.log-err{color:var(--red);}.log-info{color:var(--accent3);}
+.log-row-del{width:26px;height:26px;border-radius:6px;border:none;cursor:pointer;background:transparent;color:var(--muted);font-size:13px;display:flex;align-items:center;justify-content:center;transition:all .15s;}
+.log-row-del:hover{background:rgba(248,113,113,.2);color:var(--red);}
+.log-output-cell{max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted);cursor:pointer;}
+.log-output-cell:hover{color:var(--text);text-decoration:underline;}
+.log-filter-bar{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--border);flex-shrink:0;flex-wrap:wrap;}
+.log-count-badge{font-size:11px;color:var(--muted);font-family:'JetBrains Mono',monospace;margin-left:auto;}
+/* Log-Detail-Modal */
+.log-detail-body{padding:16px 20px;display:flex;flex-direction:column;gap:12px;max-height:55vh;overflow-y:auto;}
+.log-detail-meta{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.log-detail-field{display:flex;flex-direction:column;gap:4px;}
+.log-detail-label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;}
+.log-detail-value{font-size:13px;font-weight:600;}
+.log-output-pre{background:#0a0a10;border:1px solid var(--border);border-radius:8px;padding:12px 14px;font-family:'JetBrains Mono',monospace;font-size:11px;color:#c8d3f5;white-space:pre-wrap;word-break:break-all;max-height:220px;overflow-y:auto;line-height:1.65;}
+/* UPDATE / SETTINGS */
+.update-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+.update-info-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px 20px;}
+.update-info-label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;}
+.update-info-value{font-size:18px;font-weight:800;}
+.update-log{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;font-family:'JetBrains Mono',monospace;font-size:11px;height:160px;overflow-y:auto;line-height:1.7;}
+.update-log .log-line.ok{color:var(--green);}.update-log .log-line.err{color:var(--red);}.update-log .log-line.warn{color:var(--yellow);}.update-log .log-line.cmd{color:var(--accent3);}.update-log .log-line.info{color:var(--muted);}
+.settings-section{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:20px 24px;display:flex;flex-direction:column;gap:14px;}
+.settings-section-title{font-weight:800;font-size:14px;margin-bottom:4px;}
+.code-path{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--accent3);padding:8px;background:var(--surface);border-radius:8px;}
+/* TOASTS */
+#toasts{position:fixed;bottom:24px;right:24px;z-index:9999;display:flex;flex-direction:column;gap:8px;}
+.toast{display:flex;align-items:center;gap:10px;padding:11px 18px;border-radius:10px;background:var(--card);border:1px solid var(--border);font-size:13px;font-weight:600;box-shadow:0 8px 24px rgba(0,0,0,.4);animation:slideIn .25s ease;}
+.toast.ok{border-color:var(--green);color:var(--green);}.toast.err{border-color:var(--red);color:var(--red);}.toast.info{border-color:var(--accent1);color:var(--accent1);}
+@keyframes slideIn{from{transform:translateX(30px);opacity:0;}to{transform:translateX(0);opacity:1;}}
+.empty-state{text-align:center;padding:40px 20px;color:var(--muted);}.empty-state .icon{font-size:40px;margin-bottom:12px;opacity:.4;}
+</style>
+</head>
+<body>
+<!-- TITLEBAR -->
+<div class="titlebar">
+  <span class="titlebar-title">⚡ PS Script Manager v<span id="app-version">2.0.0</span></span>
+  <div class="titlebar-controls">
+    <button class="tb-btn tb-min" onclick="window.api.window.minimize()">─</button>
+    <button class="tb-btn tb-max" onclick="window.api.window.maximize()">□</button>
+    <button class="tb-btn tb-cls" onclick="window.api.window.close()">✕</button>
+  </div>
+</div>
+<div class="shell">
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="logo">
+      <div class="logo-icon">⚡</div>
+      <div><div class="logo-text">ScriptMgr</div><div class="logo-sub">v<span id="sb-version">2.0.0</span> · SQLite</div></div>
+    </div>
+    <nav class="nav">
+      <div class="nav-section">Navigation</div>
+      <div class="nav-item active" onclick="showPage('scripts')"><span class="icon">📋</span> Scripts<span class="nav-badge" id="badge-count">0</span></div>
+      <div class="nav-item" onclick="showPage('logs')"><span class="icon">📜</span> Logs</div>
+      <div class="nav-section">System</div>
+      <div class="nav-item" onclick="showPage('update')"><span class="icon">🔄</span> Updates<span class="nav-badge" id="badge-updates" style="display:none;background:var(--yellow);color:#000">!</span></div>
+      <div class="nav-item" onclick="showPage('settings')"><span class="icon">⚙️</span> Einstellungen</div>
+      <div class="nav-item" onclick="showPage('about')"><span class="icon">ℹ️</span> Info</div>
+    </nav>
+    <div class="sidebar-footer"><span class="status-dot"></span>DB: SQLite aktiv</div>
+  </aside>
+  <!-- MAIN -->
+  <main class="main">
+    <div class="topbar">
+      <div class="topbar-title" id="page-title">Scripts <span>// Bibliothek</span></div>
+      <div class="search-box" id="search-wrap" style="display:none"><span>🔍</span><input type="text" id="search-input" placeholder="Suchen…" oninput="filterScripts()"></div>
+      <button class="btn btn-ghost btn-sm" id="btn-import-ps1" onclick="importPs1()" style="display:none">📁 PS1 importieren</button>
+      <button class="btn btn-ghost btn-sm" id="btn-import-csv" onclick="importCsvDialog()" style="display:none">📥 CSV importieren</button>
+      <button class="btn btn-ghost btn-sm" id="btn-open-lib"   onclick="openLib()" style="display:none">📂 lib-Ordner</button>
+      <button class="btn btn-primary btn-sm" id="btn-add"      onclick="openAddModal()" style="display:none">＋ Hinzufügen</button>
+    </div>
+    <div class="content">
+
+      <!-- PAGE: SCRIPTS -->
+      <div class="page active" id="page-scripts">
+        <!-- Scan-Banner -->
+        <div class="scan-banner" id="scan-banner" style="display:none">
+          <span>🔍</span>
+          <span><span class="scan-count" id="scan-count">0</span> neue PS1-Datei(en) in lib/ gefunden, noch nicht registriert.</span>
+          <button class="btn btn-ghost btn-sm" onclick="openScanModal()" style="margin-left:auto">Jetzt registrieren</button>
+          <button class="icon-btn" onclick="document.getElementById('scan-banner').style.display='none'" style="color:var(--muted)">✕</button>
+        </div>
+        <!-- Stats -->
+        <div class="stats-row">
+          <div class="stat-card"><div class="stat-label">Scripts gesamt</div><div class="stat-value" id="stat-total">0</div><div class="stat-sub">registriert</div><div class="stat-icon">📋</div></div>
+          <div class="stat-card"><div class="stat-label">Aktiv</div><div class="stat-value" id="stat-active" style="color:var(--green)">0</div><div class="stat-sub">aktiviert</div><div class="stat-icon">✅</div></div>
+          <div class="stat-card"><div class="stat-label">Kategorien</div><div class="stat-value" id="stat-cats">0</div><div class="stat-sub">vorhanden</div><div class="stat-icon">🏷️</div></div>
+          <div class="stat-card"><div class="stat-label">Zuletzt gestartet</div><div class="stat-value" id="stat-lastrun" style="font-size:14px">–</div><div class="stat-sub" id="stat-lastrun-time">–</div><div class="stat-icon">▶️</div></div>
+        </div>
+        <!-- Panels -->
+        <div class="panels">
+          <div class="panel">
+            <div class="panel-header"><span class="panel-title">📋 Script-Bibliothek</span></div>
+            <div class="cat-pills" id="cat-pills"><span class="pill active" onclick="filterCat('')" data-cat="">Alle</span></div>
+            <div class="list-header"><span></span><span>Name / Beschreibung</span><span>Kategorie</span><span>Autor</span><span>Zuletzt</span><span>Aktionen</span></div>
+            <div class="script-list" id="script-list"><div class="empty-state"><div class="icon">📭</div><p>Keine Scripts geladen…</p></div></div>
+          </div>
+          <div class="panel">
+            <div class="panel-header"><span class="panel-title">📄 Detail</span></div>
+            <div id="detail-panel"><div class="detail-empty"><div style="font-size:32px;opacity:.3">👆</div><div>Script auswählen</div></div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- PAGE: LOGS -->
+      <div class="page" id="page-logs">
+        <div class="panel" style="flex:1;min-height:0">
+          <div class="panel-header">
+            <span class="panel-title">📜 Ausführungsprotokoll</span>
+            <div class="panel-actions">
+              <button class="btn btn-ghost btn-sm" onclick="loadLogs()">🔄 Aktualisieren</button>
+              <button class="btn btn-danger btn-sm" onclick="openClearLogsModal()">🗑 Bereinigen</button>
+            </div>
+          </div>
+          <!-- Filter-Leiste -->
+          <div class="log-filter-bar">
+            <div class="search-box" style="width:200px">
+              <span>🔍</span>
+              <input type="text" id="log-search" placeholder="Script suchen…" oninput="renderLogs()">
+            </div>
+            <select id="log-filter-status" class="form-input btn-sm" style="width:130px;padding:5px 10px" onchange="renderLogs()">
+              <option value="">Alle Status</option>
+              <option value="success">✔ Erfolg</option>
+              <option value="error">✘ Fehler</option>
+            </select>
+            <span class="log-count-badge" id="log-count-badge">0 Einträge</span>
+          </div>
+          <div style="overflow-y:auto;flex:1">
+            <table class="log-table" style="width:100%">
+              <thead>
+                <tr>
+                  <th style="width:36px"></th>
+                  <th>Zeitpunkt</th>
+                  <th>Script</th>
+                  <th>Status</th>
+                  <th>Ausgabe</th>
+                  <th style="width:36px"></th>
+                </tr>
+              </thead>
+              <tbody id="log-tbody">
+                <tr><td colspan="6" style="color:var(--muted);text-align:center;padding:20px">Wird geladen…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- PAGE: UPDATE -->
+      <div class="page" id="page-update">
+
+        <!-- KANAL 1: App-Update -->
+        <div class="panel">
+          <div class="panel-header">
+            <div>
+              <div class="panel-title">🖥️ App-Update <span style="font-size:11px;color:var(--muted);font-weight:400">— neue .exe Version</span></div>
+              <div style="font-size:11px;color:var(--muted);margin-top:3px">Lädt eine neue Version der App herunter und installiert sie. Erfordert eine neue GitHub Release vom Entwickler.</div>
+            </div>
+          </div>
+          <div style="padding:18px 20px;display:flex;flex-direction:column;gap:14px">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+              <div class="update-info-card"><div class="update-info-label">Installierte Version</div><div class="update-info-value" id="upd-current">–</div></div>
+              <div class="update-info-card"><div class="update-info-label">Verfügbare Version</div><div class="update-info-value" id="upd-latest" style="color:var(--accent1)">–</div></div>
+            </div>
+            <div style="display:flex;gap:8px">
+              <button class="btn btn-ghost btn-sm" id="btn-check-upd" onclick="checkUpdate()">🔍 Auf neue Version prüfen</button>
+              <button class="btn btn-primary btn-sm" id="btn-run-upd" onclick="runUpdate()" disabled>⬇ Herunterladen &amp; installieren</button>
+            </div>
+            <div class="update-log" id="upd-log"><div class="log-line info">Bereit. Klicke "Prüfen" um nach einer neuen App-Version zu suchen.</div></div>
+            <div style="font-size:11px;color:var(--muted);padding:10px 14px;background:rgba(124,106,247,.07);border-radius:8px;border-left:3px solid var(--accent1)">
+              <strong style="color:var(--text)">Wie funktioniert das?</strong><br>
+              Der Entwickler veröffentlicht eine neue Version als <em>GitHub Release</em>. Die App prüft dort auf <code style="font-family:'JetBrains Mono';color:var(--accent3)">latest.yml</code>, lädt den neuen Installer herunter und installiert ihn beim nächsten Start. Der Benutzer muss nichts manuell herunterladen.
+            </div>
+          </div>
+        </div>
+
+        <!-- KANAL 2: PS1-Script-Update -->
+        <div class="panel">
+          <div class="panel-header">
+            <div>
+              <div class="panel-title">📜 Script-Update <span style="font-size:11px;color:var(--muted);font-weight:400">— PS1-Dateien via Git</span></div>
+              <div style="font-size:11px;color:var(--muted);margin-top:3px">Aktualisiert nur die PowerShell-Scripte aus dem GitHub-Repo. Kein Neustart, keine neue App-Version nötig.</div>
+            </div>
+          </div>
+          <div style="padding:18px 20px;display:flex;flex-direction:column;gap:14px">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+              <div class="update-info-card">
+                <div class="update-info-label">Lokaler Stand</div>
+                <div class="update-info-value" id="git-local-hash" style="font-family:'JetBrains Mono',monospace;font-size:14px">–</div>
+              </div>
+              <div class="update-info-card">
+                <div class="update-info-label">Remote Stand</div>
+                <div class="update-info-value" id="git-remote-hash" style="font-family:'JetBrains Mono',monospace;font-size:14px;color:var(--accent1)">–</div>
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Repository URL</label>
+              <input type="text" class="form-input" id="git-repo-url" value="https://github.com/LiquidFlow-design/Scripte.git">
+            </div>
+            <div class="form-group" style="max-width:200px">
+              <label class="form-label">Branch</label>
+              <input type="text" class="form-input" id="git-branch" value="main">
+            </div>
+            <div style="display:flex;gap:8px">
+              <button class="btn btn-ghost btn-sm" id="btn-git-check" onclick="checkGitStatus()">🔍 Status prüfen</button>
+              <button class="btn btn-green btn-sm" id="btn-git-sync" onclick="runGitSync()">⬇ Scripte aktualisieren</button>
+            </div>
+            <div class="update-log" id="git-log"><div class="log-line info">Bereit. Klicke "Status prüfen" um nach neuen Scripten zu suchen.</div></div>
+            <div style="font-size:11px;color:var(--muted);padding:10px 14px;background:rgba(52,211,153,.07);border-radius:8px;border-left:3px solid var(--green)">
+              <strong style="color:var(--text)">Wie funktioniert das?</strong><br>
+              Die PS1-Scripte liegen in <code style="font-family:'JetBrains Mono';color:var(--accent3)">%AppData%\PSScriptManager\lib\</code>. 
+              Beim ersten Sync wird das Repo geklont, danach läuft ein <code style="font-family:'JetBrains Mono';color:var(--accent3)">git pull</code>. 
+              Neue Scripte werden automatisch erkannt. <strong>Git muss installiert sein.</strong>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- PAGE: SETTINGS -->
+      <div class="page" id="page-settings">
+        <div class="settings-section">
+          <div class="settings-section-title">⚙️ Pfade</div>
+          <div class="form-group"><label class="form-label">App-Daten</label><div class="code-path" id="cfg-datapath">–</div></div>
+          <div class="form-group"><label class="form-label">lib-Verzeichnis (PS1)</label><div class="code-path" id="cfg-libpath">–</div></div>
+          <div class="form-group"><label class="form-label">Datenbank</label><div class="code-path" id="cfg-dbpath">–</div></div>
+        </div>
+        <div class="settings-section">
+          <div class="settings-section-title">📥 CSV-Import</div>
+          <div style="font-size:13px;color:var(--muted)">Bestehende <code style="font-family:'JetBrains Mono';color:var(--accent3)">scripts.csv</code> einmalig importieren.</div>
+          <button class="btn btn-ghost btn-sm" style="align-self:flex-start" onclick="importCsvDialog()">📂 scripts.csv öffnen</button>
+        </div>
+      </div>
+
+      <!-- PAGE: ABOUT -->
+      <div class="page" id="page-about">
+        <div class="settings-section" style="max-width:500px">
+          <div style="display:flex;align-items:center;gap:16px;margin-bottom:8px">
+            <div style="width:52px;height:52px;border-radius:14px;background:linear-gradient(135deg,var(--accent1),var(--accent2));display:flex;align-items:center;justify-content:center;font-size:26px">⚡</div>
+            <div><div style="font-size:20px;font-weight:800">PS Script Manager</div><div style="font-size:13px;color:var(--muted)">Version <span id="about-version">2.0.0</span></div></div>
+          </div>
+          <div style="font-size:13px;color:var(--muted);line-height:1.7">Autor: Tobias Scherer · LiquidFlow Design</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">
+            <span style="font-size:11px;background:rgba(124,106,247,.15);color:var(--accent1);padding:4px 12px;border-radius:20px;font-weight:700">Electron</span>
+            <span style="font-size:11px;background:rgba(52,211,153,.15);color:var(--green);padding:4px 12px;border-radius:20px;font-weight:700">SQLite</span>
+            <span style="font-size:11px;background:rgba(56,189,248,.15);color:var(--accent3);padding:4px 12px;border-radius:20px;font-weight:700">Node.js</span>
+            <span style="font-size:11px;background:rgba(192,132,252,.15);color:var(--accent2);padding:4px 12px;border-radius:20px;font-weight:700">PowerShell</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+<!-- TERMINAL OVERLAY -->
+<div class="terminal-overlay" id="terminal-overlay">
+  <div class="terminal-window">
+    <div class="terminal-header">
+      <span style="font-size:16px">⚡</span>
+      <span class="terminal-title" id="term-title">PowerShell</span>
+      <span class="terminal-status running" id="term-status">● Läuft…</span>
+      <button class="icon-btn" id="term-abort-btn" onclick="abortScript()" title="Abbrechen" style="color:var(--red);margin-left:8px;-webkit-app-region:no-drag">⏹</button>
+      <button class="icon-btn" id="term-close-btn" onclick="closeTerminal()" style="color:var(--muted);-webkit-app-region:no-drag" disabled>✕</button>
+    </div>
+    <div class="terminal-body" id="term-body"></div>
+    <!-- Eingabe-Zeile für Read-Host -->
+    <div class="terminal-input-row" id="term-input-row">
+      <span class="terminal-prompt">▶</span>
+      <input type="text" class="terminal-input" id="term-input" placeholder="Eingabe für Read-Host…" autocomplete="off" spellcheck="false">
+      <button class="btn btn-primary btn-sm" onclick="sendTerminalInput()" style="-webkit-app-region:no-drag">↵ Senden</button>
+    </div>
+    <div class="terminal-footer">
+      <button class="btn btn-ghost btn-sm" onclick="copyTerminalOutput()">📋 Kopieren</button>
+      <button class="btn btn-ghost btn-sm" id="term-close-btn2" onclick="closeTerminal()" disabled>Schließen</button>
+    </div>
+  </div>
+</div>
+
+<!-- EDITOR OVERLAY -->
+<div class="editor-overlay" id="editor-overlay">
+  <div class="editor-window">
+    <div class="editor-header">
+      <span style="font-size:16px">📝</span>
+      <span class="editor-title" id="editor-title">editor.ps1</span>
+      <span class="editor-status" id="editor-status"></span>
+      <button class="icon-btn" onclick="closeEditor()" style="color:var(--muted);-webkit-app-region:no-drag">✕</button>
+    </div>
+    <div class="editor-body">
+      <textarea class="editor-textarea" id="editor-textarea" spellcheck="false" wrap="off"></textarea>
+    </div>
+    <div class="editor-footer">
+      <span class="editor-status" id="editor-info" style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted)"></span>
+      <button class="btn btn-ghost" onclick="closeEditor()">Abbrechen</button>
+      <button class="btn btn-primary" onclick="saveEditorCode()">💾 Speichern</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Script hinzufügen / bearbeiten -->
+<div class="modal-overlay" id="modal-script">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title" id="modal-title">Script hinzufügen</span>
+      <button class="icon-btn" onclick="closeModal()" style="font-size:18px;color:var(--muted)">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="modal-id">
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Name *</label><input type="text" class="form-input" id="modal-name" placeholder="Gaming-Optimierung"></div>
+        <div class="form-group"><label class="form-label">Dateiname (ps1) *</label><input type="text" class="form-input" id="modal-dateiname" placeholder="Gaming-Optimierung.ps1"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Kategorie</label><input type="text" class="form-input" id="modal-kategorie" placeholder="Gaming" list="kat-list"><datalist id="kat-list"></datalist></div>
+        <div class="form-group"><label class="form-label">Autor</label><input type="text" class="form-input" id="modal-autor" placeholder="Vorname Nachname"></div>
+      </div>
+      <div class="form-group"><label class="form-label">Beschreibung</label><input type="text" class="form-input" id="modal-beschreibung" placeholder="Was macht das Script?"></div>
+      <div class="form-group"><label class="form-label">Optionale Parameter</label><input type="text" class="form-input" id="modal-parameter" placeholder="-Verbose -Confirm"></div>
+      <label class="form-check"><input type="checkbox" id="modal-aktiviert" checked> Aktiviert</label>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal()">Abbrechen</button>
+      <button class="btn btn-primary" onclick="saveScript()">💾 Speichern</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Neue PS1-Dateien registrieren -->
+<div class="modal-overlay" id="modal-scan">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title">🔍 Neue Scripts registrieren</span>
+      <button class="icon-btn" onclick="closeScanModal()" style="font-size:18px;color:var(--muted)">✕</button>
+    </div>
+    <div class="modal-body" id="scan-modal-body"></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeScanModal()">Abbrechen</button>
+      <button class="btn btn-primary" onclick="registerScannedFiles()">✔ Alle registrieren</button>
+    </div>
+  </div>
+</div>
+
+<div id="toasts"></div>
+
+<!-- MODAL: Log-Detail / Vollausgabe -->
+<div class="modal-overlay" id="modal-log-detail">
+  <div class="modal" style="width:640px;max-width:95vw">
+    <div class="modal-header">
+      <span class="modal-title">📄 Log-Detail</span>
+      <button class="icon-btn" onclick="closeLogDetail()" style="font-size:18px;color:var(--muted)">✕</button>
+    </div>
+    <div class="log-detail-body" id="log-detail-body"></div>
+    <div class="modal-footer">
+      <button class="btn btn-danger btn-sm" id="log-detail-del-btn" onclick="deleteLogFromDetail()">🗑 Diesen Log löschen</button>
+      <button class="btn btn-ghost" onclick="closeLogDetail()">Schließen</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Logs bereinigen -->
+<div class="modal-overlay" id="modal-clear-logs">
+  <div class="modal" style="width:460px">
+    <div class="modal-header">
+      <span class="modal-title">🗑 Logs bereinigen</span>
+      <button class="icon-btn" onclick="closeClearLogsModal()" style="font-size:18px;color:var(--muted)">✕</button>
+    </div>
+    <div class="modal-body" style="gap:10px">
+      <div style="font-size:13px;color:var(--muted);margin-bottom:4px">Aktuell <strong id="clear-log-count" style="color:var(--text)">0</strong> Log-Einträge gespeichert.</div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <button class="btn btn-ghost" style="justify-content:flex-start;gap:12px" onclick="clearLogsOlder(7)">
+          <span style="font-size:16px">📅</span>
+          <span style="text-align:left"><strong>Älter als 7 Tage</strong> löschen</span>
+        </button>
+        <button class="btn btn-ghost" style="justify-content:flex-start;gap:12px" onclick="clearLogsOlder(30)">
+          <span style="font-size:16px">📅</span>
+          <span style="text-align:left"><strong>Älter als 30 Tage</strong> löschen</span>
+        </button>
+        <button class="btn btn-ghost" style="justify-content:flex-start;gap:12px" onclick="clearLogsOlder(90)">
+          <span style="font-size:16px">📅</span>
+          <span style="text-align:left"><strong>Älter als 90 Tage</strong> löschen</span>
+        </button>
+        <div style="border-top:1px solid var(--border);margin:4px 0"></div>
+        <button class="btn btn-danger" style="justify-content:flex-start;gap:12px" onclick="clearAllLogsConfirm()">
+          <span style="font-size:16px">⚠️</span>
+          <span style="text-align:left"><strong>Alle Logs löschen</strong> (nicht rückgängig machbar)</span>
+        </button>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeClearLogsModal()">Abbrechen</button>
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+// ── STATE ────────────────────────────────────────────────────────────────────
+let scripts    = [];
+let activeCat  = '';
+let searchTerm = '';
+let selectedId = null;
+let newFiles   = [];
+let termCleanup = [];
+let editorFilename = '';
+
+// ── INIT ─────────────────────────────────────────────────────────────────────
+async function init() {
+  const info = await window.api.app.info();
+  const ver  = info.version || '2.0.0';
+  ['app-version','sb-version','about-version'].forEach(id =>
+    document.getElementById(id).textContent = ver);
+  document.getElementById('cfg-datapath').textContent = info.dataPath || '–';
+  document.getElementById('cfg-libpath').textContent  = info.libPath  || '–';
+  document.getElementById('cfg-dbpath').textContent   = info.dbPath   || '–';
+  await loadScripts();
+  await scanLib();
+}
+
+// ── SCRIPTS LADEN ────────────────────────────────────────────────────────────
+async function loadScripts() {
+  scripts = await window.api.scripts.getAll();
+  updateStats();
+  buildCategoryPills();
+  renderScripts();
+  // Scan-Banner Count ebenfalls aktualisieren
+  const remaining = newFiles.filter(f => !scripts.some(s => s.dateiname.toLowerCase() === f.toLowerCase()));
+  newFiles = remaining;
+  if (remaining.length === 0) {
+    document.getElementById('scan-banner').style.display = 'none';
+  } else {
+    document.getElementById('scan-count').textContent = remaining.length;
+  }
+}
+
+function updateStats() {
+  const active  = scripts.filter(s => s.aktiviert).length;
+  const cats    = [...new Set(scripts.map(s => s.kategorie))].length;
+  const lastRun = scripts.filter(s => s.letztes_ausfuehren)
+    .sort((a,b) => b.letztes_ausfuehren.localeCompare(a.letztes_ausfuehren))[0];
+  document.getElementById('stat-total').textContent  = scripts.length;
+  document.getElementById('stat-active').textContent = active;
+  document.getElementById('stat-cats').textContent   = cats;
+  document.getElementById('badge-count').textContent = scripts.length;
+  if (lastRun) {
+    document.getElementById('stat-lastrun').textContent      = lastRun.name;
+    document.getElementById('stat-lastrun-time').textContent = lastRun.letztes_ausfuehren;
+  }
+}
+
+function buildCategoryPills() {
+  const cats = [...new Set(scripts.map(s => s.kategorie))].sort();
+  document.getElementById('cat-pills').innerHTML =
+    `<span class="pill ${activeCat===''?'active':''}" onclick="filterCat('')" data-cat="">Alle</span>` +
+    cats.map(c => `<span class="pill ${activeCat===c?'active':''}" onclick="filterCat('${escHtml(c)}')" data-cat="${escHtml(c)}">${escHtml(c)}</span>`).join('');
+  document.getElementById('kat-list').innerHTML = cats.map(c => `<option value="${escHtml(c)}">`).join('');
+}
+
+function filterCat(cat) {
+  activeCat = cat;
+  document.querySelectorAll('.pill').forEach(p => p.classList.toggle('active', p.dataset.cat === cat));
+  renderScripts();
+}
+
+function filterScripts() {
+  searchTerm = document.getElementById('search-input').value.toLowerCase();
+  renderScripts();
+}
+
+function renderScripts() {
+  const filtered = scripts.filter(s => {
+    const mc = !activeCat || s.kategorie === activeCat;
+    const mt = !searchTerm || s.name.toLowerCase().includes(searchTerm) ||
+               (s.beschreibung||'').toLowerCase().includes(searchTerm) ||
+               s.dateiname.toLowerCase().includes(searchTerm);
+    return mc && mt;
+  });
+  const list = document.getElementById('script-list');
+  if (!filtered.length) {
+    list.innerHTML = `<div class="empty-state"><div class="icon">📭</div><p>Keine Scripts gefunden</p></div>`;
+    return;
+  }
+  list.innerHTML = filtered.map(s => `
+    <div class="script-row ${selectedId===s.id?'selected':''}" onclick="selectScript(${s.id})">
+      <span class="row-status ${s.aktiviert?'on':'off'}"></span>
+      <div><div class="row-name">${escHtml(s.name)}</div><div class="row-desc">${escHtml(s.beschreibung||'')}</div></div>
+      <span class="cat-badge">${escHtml(s.kategorie)}</span>
+      <span style="font-size:12px;color:var(--muted)">${escHtml(s.autor||'–')}</span>
+      <span class="row-time">${s.letztes_ausfuehren?s.letztes_ausfuehren.slice(0,16):'–'}</span>
+      <div class="row-actions">
+        <button class="icon-btn run-btn"  title="Ausführen"  onclick="event.stopPropagation();runScript(${s.id})">▶</button>
+        <button class="icon-btn code-btn" title="Code bearbeiten" onclick="event.stopPropagation();openEditor('${escHtml(s.dateiname)}')">📝</button>
+        <button class="icon-btn edit-btn" title="Bearbeiten" onclick="event.stopPropagation();openEditModal(${s.id})">✏️</button>
+        <button class="icon-btn del-btn"  title="Löschen"    onclick="event.stopPropagation();deleteScript(${s.id})">🗑</button>
+      </div>
+    </div>`).join('');
+}
+
+// ── DETAIL ───────────────────────────────────────────────────────────────────
+function selectScript(id) {
+  selectedId = id;
+  renderScripts();
+  const s = scripts.find(x => x.id === id);
+  if (!s) return;
+  document.getElementById('detail-panel').innerHTML = `
+    <div class="detail-body">
+      <div class="detail-field"><div class="detail-label">Name</div><div class="detail-value">${escHtml(s.name)}</div></div>
+      <div class="detail-field"><div class="detail-label">Datei</div><div class="detail-value" style="font-family:'JetBrains Mono',monospace;color:var(--accent3);font-size:12px">${escHtml(s.dateiname)}</div></div>
+      <div class="detail-field"><div class="detail-label">Kategorie</div><div class="detail-value"><span class="cat-badge">${escHtml(s.kategorie)}</span></div></div>
+      <div class="detail-field"><div class="detail-label">Beschreibung</div><div class="detail-value" style="color:var(--muted);font-size:13px">${escHtml(s.beschreibung||'–')}</div></div>
+      <div class="detail-field"><div class="detail-label">Autor</div><div class="detail-value">${escHtml(s.autor||'–')}</div></div>
+      ${s.parameter?`<div class="detail-field"><div class="detail-label">Parameter</div><div class="detail-value" style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--accent1)">${escHtml(s.parameter)}</div></div>`:''}
+      <div class="detail-field"><div class="detail-label">Zuletzt ausgeführt</div><div class="detail-value">${s.letztes_ausfuehren||'–'}</div></div>
+      <div class="detail-field"><div class="detail-label">Status</div><div class="detail-value" style="color:${s.aktiviert?'var(--green)':'var(--muted)'}">${s.aktiviert?'✅ Aktiviert':'⏸ Deaktiviert'}</div></div>
+      <div class="detail-actions">
+        <button class="btn btn-green btn-sm"  onclick="runScript(${s.id})">▶ Ausführen</button>
+        <button class="btn btn-ghost btn-sm"  onclick="openEditor('${escHtml(s.dateiname)}')">📝 Code bearbeiten</button>
+        <button class="btn btn-ghost btn-sm"  onclick="openEditModal(${s.id})">✏️ Bearbeiten</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteScript(${s.id})">🗑 Löschen</button>
+      </div>
+    </div>`;
+}
+
+// ── TERMINAL ─────────────────────────────────────────────────────────────────
+function openTerminal(name) {
+  const body = document.getElementById('term-body');
+  document.getElementById('term-title').textContent   = `▶ ${name}`;
+  document.getElementById('term-status').textContent  = '● Läuft…';
+  document.getElementById('term-status').className    = 'terminal-status running';
+  document.getElementById('term-close-btn').disabled  = true;
+  document.getElementById('term-close-btn2').disabled = true;
+  document.getElementById('term-abort-btn').disabled  = false;
+  document.getElementById('term-input').value         = '';
+  body.innerHTML = `<div class="t-line info">● Starte: ${escHtml(name)}</div>`;
+  document.getElementById('terminal-overlay').classList.add('open');
+}
+
+function appendTermLine(line, type) {
+  const body = document.getElementById('term-body');
+  const div  = document.createElement('div');
+  div.className = `t-line${type==='stderr'?' stderr':''}`;
+  div.textContent = line;
+  body.appendChild(div);
+  body.scrollTop = body.scrollHeight;
+}
+
+function terminalDone(success) {
+  const status = document.getElementById('term-status');
+  status.textContent = success ? '✔ Fertig' : '✘ Fehler';
+  status.className   = 'terminal-status ' + (success ? 'ok' : 'err');
+  document.getElementById('term-abort-btn').disabled  = true;
+  document.getElementById('term-close-btn').disabled  = false;
+  document.getElementById('term-close-btn2').disabled = false;
+  // Eingabezeile deaktivieren
+  document.getElementById('term-input').disabled       = true;
+  const endDiv = document.createElement('div');
+  endDiv.className   = 't-line ' + (success ? 'ok' : 'stderr');
+  endDiv.textContent = success ? '✔ Script erfolgreich beendet.' : '✘ Script mit Fehler oder Abbruch beendet.';
+  document.getElementById('term-body').appendChild(endDiv);
+  document.getElementById('term-body').scrollTop = document.getElementById('term-body').scrollHeight;
+}
+
+function closeTerminal() {
+  document.getElementById('terminal-overlay').classList.remove('open');
+  document.getElementById('term-input').disabled = false;
+  termCleanup.forEach(fn => fn());
+  termCleanup = [];
+}
+
+function abortScript() {
+  window.api.terminal.kill();
+  appendTermLine('⏹ Abgebrochen durch Benutzer.', 'stderr');
+}
+
+function sendTerminalInput() {
+  const input = document.getElementById('term-input');
+  const text  = input.value;
+  // Eingabe im Terminal anzeigen (Echo)
+  appendTermLine('▶ ' + text, 'info');
+  window.api.terminal.sendInput(text);
+  input.value = '';
+  input.focus();
+}
+
+function copyTerminalOutput() {
+  const lines = [...document.getElementById('term-body').querySelectorAll('.t-line')]
+    .map(d => d.textContent).join('\n');
+  navigator.clipboard.writeText(lines).then(() => showToast('📋 In Zwischenablage kopiert', 'ok'));
+}
+
+// ── SCRIPT AUSFÜHREN ─────────────────────────────────────────────────────────
+async function runScript(id) {
+  const s = scripts.find(x => x.id === id);
+  if (!s) return;
+  openTerminal(s.name);
+  document.getElementById('term-input').disabled = false;
+  document.getElementById('term-input').focus();
+
+  const offData = window.api.terminal.onData(d => appendTermLine(d.line, d.type));
+  const offEnd  = window.api.terminal.onEnd(d => {
+    terminalDone(d.success);
+    loadScripts();
+    if (selectedId === id) selectScript(id);
+    showToast(d.success ? `✔ ${s.name} abgeschlossen` : `✘ Fehler bei ${s.name}`, d.success?'ok':'err');
+  });
+  termCleanup = [offData, offEnd];
+
+  window.api.scripts.run(id, s.parameter || '');
+}
+
+// ── EDITOR ───────────────────────────────────────────────────────────────────
+async function openEditor(filename) {
+  editorFilename = filename;
+  document.getElementById('editor-title').textContent = filename;
+  document.getElementById('editor-status').textContent = '⌛ Lade…';
+  document.getElementById('editor-overlay').classList.add('open');
+  const r = await window.api.scripts.readCode(filename);
+  if (r.success) {
+    const ta = document.getElementById('editor-textarea');
+    ta.value = r.code;
+    updateEditorInfo(ta);
+    document.getElementById('editor-status').textContent = '';
+  } else {
+    document.getElementById('editor-textarea').value = '# Datei nicht gefunden: ' + filename;
+    document.getElementById('editor-status').textContent = '✘ ' + (r.error || 'Fehler');
+  }
+}
+
+function updateEditorInfo(ta) {
+  const lines = ta.value.split('\n').length;
+  const chars = ta.value.length;
+  document.getElementById('editor-info').textContent = `${lines} Zeilen · ${chars} Zeichen`;
+}
+
+function closeEditor() { document.getElementById('editor-overlay').classList.remove('open'); }
+
+async function saveEditorCode() {
+  const code = document.getElementById('editor-textarea').value;
+  const r    = await window.api.scripts.writeCode(editorFilename, code);
+  if (r.success) {
+    showToast(`💾 ${editorFilename} gespeichert`, 'ok');
+    document.getElementById('editor-status').textContent = '✔ Gespeichert';
+    setTimeout(() => document.getElementById('editor-status').textContent = '', 2000);
+  } else {
+    showToast('✘ Speichern fehlgeschlagen: ' + (r.error||''), 'err');
+  }
+}
+
+// ── MODAL: HINZUFÜGEN / BEARBEITEN ───────────────────────────────────────────
+function openAddModal(prefillFilename) {
+  document.getElementById('modal-title').textContent  = 'Script hinzufügen';
+  document.getElementById('modal-id').value           = '';
+  document.getElementById('modal-name').value         = prefillFilename ? prefillFilename.replace(/\.ps1$/i,'') : '';
+  document.getElementById('modal-dateiname').value    = prefillFilename || '';
+  document.getElementById('modal-kategorie').value    = '';
+  document.getElementById('modal-autor').value        = '';
+  document.getElementById('modal-beschreibung').value = '';
+  document.getElementById('modal-parameter').value    = '';
+  document.getElementById('modal-aktiviert').checked  = true;
+  document.getElementById('modal-script').classList.add('open');
+}
+
+function openEditModal(id) {
+  const s = scripts.find(x => x.id === id);
+  if (!s) return;
+  document.getElementById('modal-title').textContent  = 'Script bearbeiten';
+  document.getElementById('modal-id').value           = s.id;
+  document.getElementById('modal-name').value         = s.name;
+  document.getElementById('modal-dateiname').value    = s.dateiname;
+  document.getElementById('modal-kategorie').value    = s.kategorie;
+  document.getElementById('modal-autor').value        = s.autor || '';
+  document.getElementById('modal-beschreibung').value = s.beschreibung || '';
+  document.getElementById('modal-parameter').value    = s.parameter || '';
+  document.getElementById('modal-aktiviert').checked  = !!s.aktiviert;
+  document.getElementById('modal-script').classList.add('open');
+}
+
+function closeModal() { document.getElementById('modal-script').classList.remove('open'); }
+
+async function saveScript() {
+  const id   = document.getElementById('modal-id').value;
+  const data = {
+    name:         document.getElementById('modal-name').value.trim(),
+    dateiname:    document.getElementById('modal-dateiname').value.trim(),
+    kategorie:    document.getElementById('modal-kategorie').value.trim() || 'Allgemein',
+    autor:        document.getElementById('modal-autor').value.trim(),
+    beschreibung: document.getElementById('modal-beschreibung').value.trim(),
+    parameter:    document.getElementById('modal-parameter').value.trim(),
+    aktiviert:    document.getElementById('modal-aktiviert').checked,
+  };
+  if (!data.name || !data.dateiname) { showToast('Name und Dateiname sind Pflichtfelder', 'err'); return; }
+  const r = id
+    ? await window.api.scripts.update({ ...data, id: parseInt(id) })
+    : await window.api.scripts.add(data);
+  if (r.success) {
+    showToast(id ? '✔ Script aktualisiert' : '✔ Script hinzugefügt', 'ok');
+    closeModal();
+    await loadScripts();  // ← Echtzeit-Update Stats
+  } else { showToast('✘ Fehler beim Speichern', 'err'); }
+}
+
+async function deleteScript(id) {
+  const s = scripts.find(x => x.id === id);
+  if (!s || !confirm(`Script "${s.name}" wirklich löschen?`)) return;
+  const r = await window.api.scripts.delete(id);
+  if (r.success) {
+    showToast('🗑 Script gelöscht', 'ok');
+    if (selectedId === id) { selectedId = null; document.getElementById('detail-panel').innerHTML = `<div class="detail-empty"><div style="font-size:32px;opacity:.3">👆</div><div>Script auswählen</div></div>`; }
+    await loadScripts();  // ← Echtzeit-Update Stats
+  }
+}
+
+// ── LIB SCAN ─────────────────────────────────────────────────────────────────
+async function scanLib() {
+  newFiles = await window.api.lib.scanNew();
+  const banner = document.getElementById('scan-banner');
+  if (newFiles.length > 0) {
+    document.getElementById('scan-count').textContent = newFiles.length;
+    banner.style.display = 'flex';
+  } else { banner.style.display = 'none'; }
+}
+
+function openScanModal() {
+  const body = document.getElementById('scan-modal-body');
+  body.innerHTML = newFiles.map(f => `
+    <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)">
+      <span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--accent3);flex:1">${escHtml(f)}</span>
+      <button class="btn btn-primary btn-sm" onclick="quickRegister('${escHtml(f)}')">＋ Registrieren</button>
+    </div>`).join('') || '<div style="color:var(--muted);font-size:13px;padding:8px">Keine neuen Dateien.</div>';
+  document.getElementById('modal-scan').classList.add('open');
+}
+
+function closeScanModal() { document.getElementById('modal-scan').classList.remove('open'); }
+
+function quickRegister(filename) { closeScanModal(); openAddModal(filename); }
+
+async function registerScannedFiles() {
+  let count = 0;
+  for (const f of newFiles) {
+    const r = await window.api.scripts.add({ name:f.replace(/\.ps1$/i,''), dateiname:f, kategorie:'Allgemein', beschreibung:'', autor:'', parameter:'', aktiviert:true });
+    if (r.success) count++;
+  }
+  showToast(`✔ ${count} Scripts registriert`, 'ok');
+  closeScanModal();
+  await loadScripts();  // ← Echtzeit-Update Stats + Banner
+  await scanLib();
+}
+
+// ── CSV IMPORT ───────────────────────────────────────────────────────────────
+async function importCsvDialog() {
+  const result = await window.api.lib.openCsv();
+  if (!result.success) return;
+  const lines = result.content.replace(/^\uFEFF/,'').split('\n').map(l=>l.trim()).filter(Boolean).slice(1);
+  let imported = 0;
+  for (const line of lines) {
+    const parts = line.split(';');
+    if (parts.length < 3) continue;
+    const [,name,dateiname,kategorie,beschreibung,autor,parameter,aktiviert] = parts;
+    if (!name?.trim() || !dateiname?.trim()) continue;
+    const r = await window.api.scripts.add({ name:name.trim(), dateiname:dateiname.trim(), kategorie:(kategorie||'').trim()||'Allgemein', beschreibung:(beschreibung||'').trim(), autor:(autor||'').trim(), parameter:(parameter||'').trim(), aktiviert:(aktiviert||'').trim()==='1' });
+    if (r.success) imported++;
+  }
+  showToast(`✔ ${imported} Scripts importiert`, 'ok');
+  await loadScripts();  // ← Echtzeit-Update Stats
+  await scanLib();
+}
+
+// ── LIB-ORDNER ───────────────────────────────────────────────────────────────
+async function openLib() { const r = await window.api.lib.openFolder(); if(r.success) showToast('📂 lib-Ordner geöffnet','info'); }
+async function importPs1() { const r = await window.api.lib.importFile(); if(r.success){ showToast(`📁 ${r.files.join(', ')} kopiert`,'ok'); await scanLib(); } }
+
+// ── LOGS ─────────────────────────────────────────────────────────────────────
+let allLogs = [];
+
+async function loadLogs() {
+  allLogs = await window.api.logs.getRecent(500);
+  renderLogs();
+}
+
+function renderLogs() {
+  const search    = (document.getElementById('log-search')?.value || '').toLowerCase();
+  const statusFil = document.getElementById('log-filter-status')?.value || '';
+
+  const filtered = allLogs.filter(l => {
+    const ms = !statusFil || l.status === statusFil;
+    const mt = !search   ||
+      (l.script_name||'').toLowerCase().includes(search) ||
+      (l.output||'').toLowerCase().includes(search);
+    return ms && mt;
+  });
+
+  document.getElementById('log-count-badge').textContent = `${filtered.length} Einträge`;
+
+  const tbody = document.getElementById('log-tbody');
+  if (!filtered.length) {
+    tbody.innerHTML = `<tr><td colspan="6" style="color:var(--muted);text-align:center;padding:24px">Keine Logs gefunden</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = filtered.map(l => {
+    const statusCls = l.status==='success' ? 'log-ok' : l.status==='error' ? 'log-err' : 'log-info';
+    const statusIcon = l.status==='success' ? '✔' : l.status==='error' ? '✘' : '●';
+    const preview = escHtml((l.output||'').replace(/\s+/g,' ').slice(0,120));
+    return `<tr>
+      <td style="padding:0 8px"><input type="checkbox" class="log-chk" data-id="${l.id}" style="accent-color:var(--accent1)"></td>
+      <td style="font-size:11px;white-space:nowrap">${l.gestartet_am||'–'}</td>
+      <td style="font-weight:600">${escHtml(l.script_name||'–')}</td>
+      <td class="${statusCls}">${statusIcon} ${l.status}</td>
+      <td class="log-output-cell" onclick="openLogDetail(${l.id})" title="Klicken für Vollausgabe">${preview||'–'}</td>
+      <td><button class="log-row-del" onclick="deleteSingleLog(${l.id})" title="Diesen Log löschen">🗑</button></td>
+    </tr>`;
+  }).join('');
+}
+
+// Einzelnen Log löschen (direkt aus Tabelle)
+async function deleteSingleLog(id) {
+  await window.api.logs.clearById(id);
+  allLogs = allLogs.filter(l => l.id !== id);
+  renderLogs();
+  showToast('🗑 Log gelöscht', 'ok');
+}
+
+// Log-Detail Modal öffnen
+let detailLogId = null;
+function openLogDetail(id) {
+  const l = allLogs.find(x => x.id === id);
+  if (!l) return;
+  detailLogId = id;
+  const statusCls  = l.status==='success'?'log-ok':l.status==='error'?'log-err':'log-info';
+  const statusIcon = l.status==='success'?'✔':l.status==='error'?'✘':'●';
+  document.getElementById('log-detail-body').innerHTML = `
+    <div class="log-detail-meta">
+      <div class="log-detail-field"><div class="log-detail-label">Zeitpunkt</div><div class="log-detail-value" style="font-family:'JetBrains Mono',monospace;font-size:12px">${l.gestartet_am||'–'}</div></div>
+      <div class="log-detail-field"><div class="log-detail-label">Script</div><div class="log-detail-value">${escHtml(l.script_name||'–')}</div></div>
+      <div class="log-detail-field"><div class="log-detail-label">Datei</div><div class="log-detail-value" style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--accent3)">${escHtml(l.dateiname||'–')}</div></div>
+      <div class="log-detail-field"><div class="log-detail-label">Status</div><div class="log-detail-value ${statusCls}">${statusIcon} ${l.status}</div></div>
+    </div>
+    <div class="log-detail-field">
+      <div class="log-detail-label">Ausgabe</div>
+      <pre class="log-output-pre">${escHtml(l.output||'(keine Ausgabe)')}</pre>
+    </div>`;
+  document.getElementById('modal-log-detail').classList.add('open');
+}
+
+function closeLogDetail() { document.getElementById('modal-log-detail').classList.remove('open'); }
+
+async function deleteLogFromDetail() {
+  if (detailLogId === null) return;
+  await window.api.logs.clearById(detailLogId);
+  allLogs = allLogs.filter(l => l.id !== detailLogId);
+  renderLogs();
+  closeLogDetail();
+  showToast('🗑 Log gelöscht', 'ok');
+}
+
+// Bereinigen-Modal
+async function openClearLogsModal() {
+  const r = await window.api.logs.getCount();
+  document.getElementById('clear-log-count').textContent = r.count;
+  document.getElementById('modal-clear-logs').classList.add('open');
+}
+function closeClearLogsModal() { document.getElementById('modal-clear-logs').classList.remove('open'); }
+
+async function clearLogsOlder(days) {
+  await window.api.logs.clearOlderThan(days);
+  closeClearLogsModal();
+  showToast(`🗑 Logs älter als ${days} Tage gelöscht`, 'ok');
+  await loadLogs();
+}
+
+async function clearAllLogsConfirm() {
+  if (!confirm('Wirklich ALLE Logs unwiderruflich löschen?')) return;
+  await window.api.logs.clearAll();
+  allLogs = [];
+  renderLogs();
+  closeClearLogsModal();
+  showToast('🗑 Alle Logs gelöscht', 'ok');
+}
+
+// ── UPDATE ───────────────────────────────────────────────────────────────────
+function appendToLog(elId, msg, cls='info') {
+  const el = document.getElementById(elId);
+  if (!el) return;
+  const d = document.createElement('div');
+  d.className = 'log-line ' + cls;
+  d.textContent = msg;
+  el.appendChild(d);
+  el.scrollTop = el.scrollHeight;
+}
+function updLog(msg,cls='info') { appendToLog('upd-log', msg, cls); }
+function gitLog(msg,cls='info') { appendToLog('git-log', msg, cls); }
+
+// ── App-Update ────────────────────────────────────────────────────────────
+async function checkUpdate() {
+  const btn = document.getElementById('btn-check-upd');
+  btn.disabled = true; btn.textContent = '⌛ Prüfe…';
+  updLog(`[${now()}] Prüfe auf neue App-Version…`, 'cmd');
+  try {
+    const r = await window.api.update.check();
+    document.getElementById('upd-current').textContent = r.currentVersion || '–';
+    document.getElementById('upd-latest').textContent  = r.latestVersion  || '–';
+    if (r.available) {
+      document.getElementById('btn-run-upd').disabled        = false;
+      document.getElementById('badge-updates').style.display = '';
+      updLog(`[${now()}] ⬇ Neue Version verfügbar: v${r.latestVersion}`, 'warn');
+      showToast(`⬇ App-Update v${r.latestVersion} verfügbar`, 'info');
+    } else if (r.error) {
+      updLog(`[${now()}] Fehler: ${r.error}`, 'err');
+      showToast('✘ Update-Check fehlgeschlagen', 'err');
+    } else {
+      updLog(`[${now()}] ✔ App ist aktuell (v${r.currentVersion})`, 'ok');
+      showToast('✔ App ist aktuell', 'ok');
+    }
+  } catch(e) { updLog(`Fehler: ${e.message}`, 'err'); }
+  btn.disabled = false; btn.textContent = '🔍 Auf neue Version prüfen';
+}
+
+async function runUpdate() {
+  document.getElementById('btn-run-upd').disabled = true;
+  updLog(`[${now()}] Lade neue Version herunter…`, 'cmd');
+  const r = await window.api.update.download();
+  if (r.success) {
+    updLog(`[${now()}] ✔ Download abgeschlossen. App startet neu…`, 'ok');
+    showToast('✔ Update wird installiert, App startet neu', 'ok');
+  } else {
+    updLog(`[${now()}] Fehler: ${r.error || '?'}`, 'err');
+    document.getElementById('btn-run-upd').disabled = false;
+  }
+}
+
+// ── Git-Script-Update ─────────────────────────────────────────────────────
+async function checkGitStatus() {
+  const btn = document.getElementById('btn-git-check');
+  btn.disabled = true; btn.textContent = '⌛ Prüfe…';
+  gitLog(`[${now()}] Prüfe Git-Status…`, 'cmd');
+  try {
+    const r = await window.api.git.status();
+    if (r.noRepo) {
+      gitLog(`[${now()}] ℹ Noch kein Git-Repo. Klicke "Scripte aktualisieren" für erstes Klonen.`, 'warn');
+      document.getElementById('git-local-hash').textContent  = 'kein Repo';
+      document.getElementById('git-remote-hash').textContent = '–';
+    } else if (r.error) {
+      gitLog(`[${now()}] Fehler: ${r.error}`, 'err');
+      showToast('✘ Git-Status fehlgeschlagen', 'err');
+    } else {
+      document.getElementById('git-local-hash').textContent  = r.localHash  || '–';
+      document.getElementById('git-remote-hash').textContent = r.remoteHash || '–';
+      if (r.available) {
+        gitLog(`[${now()}] ⬇ Neue Commits verfügbar:`, 'warn');
+        (r.commitLog || '').split('\n').filter(Boolean).forEach(line =>
+          gitLog('  ' + line, 'warn'));
+        showToast('⬇ Neue PS1-Scripts verfügbar', 'info');
+      } else {
+        gitLog(`[${now()}] ✔ Scripts sind aktuell`, 'ok');
+        showToast('✔ Scripts sind aktuell', 'ok');
+      }
+    }
+  } catch(e) { gitLog(`Fehler: ${e.message}`, 'err'); }
+  btn.disabled = false; btn.textContent = '🔍 Status prüfen';
+}
+
+async function runGitSync() {
+  const btn     = document.getElementById('btn-git-sync');
+  const repoUrl = document.getElementById('git-repo-url').value.trim();
+  const branch  = document.getElementById('git-branch').value.trim() || 'main';
+  if (!repoUrl) { showToast('Bitte Repository-URL eingeben', 'err'); return; }
+
+  btn.disabled = true; btn.textContent = '⌛ Synchronisiere…';
+  gitLog(`[${now()}] Starte Git-Sync von ${repoUrl} (${branch})…`, 'cmd');
+
+  try {
+    const r = await window.api.git.sync(repoUrl, branch);
+    if (r.success) {
+      gitLog(`[${now()}] ✔ Sync erfolgreich`, 'ok');
+      if (r.newFiles?.length)     gitLog(`  Neue Scripte: ${r.newFiles.join(', ')}`, 'ok');
+      if (r.updatedFiles?.length) gitLog(`  Aktualisiert: ${r.updatedFiles.length} Datei(en)`, 'info');
+      if (r.output) r.output.split('\n').filter(Boolean).forEach(l => gitLog('  ' + l, 'info'));
+      showToast(`✔ Scripts synchronisiert${r.newFiles?.length ? ` (${r.newFiles.length} neu)` : ''}`, 'ok');
+      // Scan-Banner aktualisieren falls neue PS1-Dateien aufgetaucht sind
+      await scanLib();
+    } else {
+      gitLog(`[${now()}] ✘ Fehler: ${r.error || '?'}`, 'err');
+      if (r.output) r.output.split('\n').filter(Boolean).forEach(l => gitLog('  ' + l, 'err'));
+      showToast('✘ Git-Sync fehlgeschlagen', 'err');
+    }
+  } catch(e) { gitLog(`Fehler: ${e.message}`, 'err'); }
+  btn.disabled = false; btn.textContent = '⬇ Scripte aktualisieren';
+}
+
+// ── NAVIGATION ───────────────────────────────────────────────────────────────
+const pageTitles={scripts:'Scripts <span>// Bibliothek</span>',logs:'Logs <span>// Ausführungsprotokoll</span>',update:'Updates <span>// Releases</span>',settings:'Einstellungen <span>// Konfiguration</span>',about:'Info <span>// PS Script Manager v2</span>'};
+const topbarIds={scripts:['search-wrap','btn-add','btn-import-ps1','btn-import-csv','btn-open-lib']};
+function showPage(name){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.getElementById('page-'+name)?.classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(i=>i.classList.toggle('active',i.textContent.trim().toLowerCase().startsWith(name.slice(0,4))));
+  document.getElementById('page-title').innerHTML=pageTitles[name]||name;
+  const show=topbarIds[name]||[];
+  ['search-wrap','btn-add','btn-import-ps1','btn-import-csv','btn-open-lib'].forEach(id=>{const el=document.getElementById(id);if(el)el.style.display=show.includes(id)?'':'none';});
+  if(name==='logs') loadLogs();
+  if(name==='update') {
+    window.api.app.info().then(i => {
+      document.getElementById('upd-current').textContent = i.version || '–';
+    });
+  }
+}
+
+// ── UTILS ────────────────────────────────────────────────────────────────────
+function showToast(msg,type='info'){const c=document.getElementById('toasts');const t=document.createElement('div');t.className=`toast ${type}`;t.innerHTML=`<span>${type==='ok'?'✔':type==='err'?'✘':'ℹ'}</span><span>${msg}</span>`;c.appendChild(t);setTimeout(()=>t.remove(),3500);}
+function escHtml(str){if(!str)return'';return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function now(){return new Date().toLocaleTimeString('de-DE');}
+
+// Enter im Terminal-Input = Eingabe senden
+document.addEventListener('DOMContentLoaded',()=>{
+  document.getElementById('term-input').addEventListener('keydown', e=>{
+    if(e.key==='Enter'){e.preventDefault();sendTerminalInput();}
+  });
+  document.getElementById('editor-textarea').addEventListener('input', e=>{
+    updateEditorInfo(e.target);
+  });
+  document.getElementById('editor-textarea').addEventListener('keydown', e=>{
+    // Tab-Taste = 4 Leerzeichen
+    if(e.key==='Tab'){e.preventDefault();const s=e.target.selectionStart;const v=e.target.value;e.target.value=v.slice(0,s)+'    '+v.slice(e.target.selectionEnd);e.target.selectionStart=e.target.selectionEnd=s+4;}
+    // Ctrl+S = Speichern
+    if((e.ctrlKey||e.metaKey)&&e.key==='s'){e.preventDefault();saveEditorCode();}
+  });
+});
+
+document.addEventListener('keydown', e=>{
+  if(e.key==='Escape'){
+    closeModal(); closeScanModal();
+    if(!document.getElementById('term-close-btn').disabled) closeTerminal();
+    closeEditor();
+  }
+});
+
+init();
+showPage('scripts');
+</script>
+</body>
+</html>
