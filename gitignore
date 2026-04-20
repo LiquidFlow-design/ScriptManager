@@ -1,0 +1,24 @@
+# Abhängigkeiten
+node_modules/
+
+# Build-Ausgabe → NUR als GitHub Release hochladen, NIEMALS pushen
+dist/
+*.exe
+*.blockmap
+
+# Datenbank (benutzerspezifisch, nicht versionieren)
+*.db
+*.db-shm
+*.db-wal
+
+# Logs
+Logs/
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
