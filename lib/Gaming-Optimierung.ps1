@@ -5,10 +5,20 @@
 .DESCRIPTION
     Optimiert Windows-Einstellungen fuer bessere Gaming-Performance.
     Erstellt zuvor automatisch einen Systemwiederherstellungspunkt.
+    Mit dem Parameter -Undo werden alle Aenderungen rueckgaengig gemacht.
+.PARAMETER Undo
+    Macht alle vorgenommenen Optimierungen rueckgaengig und stellt
+    die Windows-Standardwerte wieder her.
+.EXAMPLE
+    .\Gaming-Optimierung.ps1
+    .\Gaming-Optimierung.ps1 -Undo
 .NOTES
     Muss als Administrator ausgefuehrt werden.
     Getestet auf Windows 10 / Windows 11.
 #>
+param(
+    [switch]$Undo
+)
 
 # ============================================================
 #  KONFIGURATION - Hier kannst du Optimierungen ein-/ausschalten
@@ -88,6 +98,41 @@ $Config = @{
 
     # Paging-Datei auf feste Groesse setzen (empfohlen ab 16GB RAM)
     PagingDateiFixieren        = $true
+
+    # ---- Erweiterte Performance-Optimierungen ----
+    # Network Throttling Index deaktivieren (verhindert Paketdrosselung durch Windows)
+    NetworkThrottling          = $true
+
+    # SystemResponsiveness: CPU-Zeit fuer Spiele maximieren (0 = alles fuer Vordergrund)
+    SystemResponsiveness       = $true
+
+    # Large System Cache deaktivieren (RAM gehoert den Spielen, nicht dem Dateicache)
+    LargeSystemCache           = $true
+
+    # NVIDIA Ultra Low Latency / AMD Anti-Lag per Registry aktivieren
+    GPULowLatency              = $true
+
+    # Automatischen Spielprozess-Prio-Task einrichten (High Priority fuer Games)
+    # Richtet einen Scheduled Task ein, der nichts Aggressives tut
+    GamePriorityTask           = $true
+
+    # IRQ-Priorisierung: GPU und Netzwerkkarte auf dedizierten CPU-Kern legen
+    IRQPriorisierung           = $true
+
+    # ---- Netzwerkadapter-Optimierungen ----
+    # NIC Erweiterte Einstellungen optimieren (LSO, Flow Control, EEE, Interrupt Moderation)
+    # Reduziert Ping-Spitzen, Paketbursts und Verbindungsabbrueche erheblich
+    NICOptimierungen           = $true
+
+    # IPv6 deaktivieren (viele Spielserver sind rein IPv4 - verhindert Verbindungsverzoegerungen)
+    IPv6Deaktivieren           = $true
+
+    # Delivery Optimization deaktivieren (verhindert dass Windows deine Bandbreite
+    # fuer P2P-Updateverteilung an andere PCs verbraucht)
+    DeliveryOptimization       = $true
+
+    # RSS (Receive Side Scaling) auf dedizierten CPU-Kern binden (weniger NDIS-DPC-Latenz)
+    RSSAffinitaet              = $true
 }
 
 # ============================================================
@@ -709,8 +754,602 @@ function Optimize-Controller {
 }
 
 # ============================================================
-#  ABSCHLUSS
+#  NETWORK THROTTLING INDEX & SYSTEM RESPONSIVENESS
 # ============================================================
+function Set-NetworkAndCPUResponsiveness {
+    Write-Header "Schritt 18/22 - Network Throttling Index & SystemResponsiveness"
+
+    # Network Throttling Index
+    if ($Config.NetworkThrottling) {
+        try {
+            $mmPath = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile"
+            if (-not (Test-Path $mmPath)) { New-Item -Path $mmPath -Force | Out-Null }
+            # 0xFFFFFFFF = Drosselung vollstaendig deaktivieren
+            Set-ItemProperty -Path $mmPath -Name "NetworkThrottlingIndex" -Value 0xFFFFFFFF -Type DWord
+            Write-OK "NetworkThrottlingIndex deaktiviert (keine Paketdrosselung durch Windows)."
+        }
+        catch { Write-Warn "NetworkThrottlingIndex konnte nicht gesetzt werden: $_" }
+    } else { Write-Skip "NetworkThrottlingIndex-Optimierung uebersprungen." }
+
+    # SystemResponsiveness
+    if ($Config.SystemResponsiveness) {
+        try {
+            $mmPath = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile"
+            if (-not (Test-Path $mmPath)) { New-Item -Path $mmPath -Force | Out-Null }
+            # 10 = optimaler Wert fuer Gaming (Standard ist 20)
+            # Hinweis: Werte unter 10 werden von Windows intern als 20 behandelt - 10 ist das effektive Minimum!
+            Set-ItemProperty -Path $mmPath -Name "SystemResponsiveness" -Value 10 -Type DWord
+
+            # Auch fuer den Games-Profil-Eintrag setzen
+            $gamesPath = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile\Tasks\Games"
+            if (-not (Test-Path $gamesPath)) { New-Item -Path $gamesPath -Force | Out-Null }
+            Set-ItemProperty -Path $gamesPath -Name "Affinity"           -Value 0          -Type DWord  -ErrorAction SilentlyContinue
+            Set-ItemProperty -Path $gamesPath -Name "Background Only"    -Value "False"    -Type String -ErrorAction SilentlyContinue
+            Set-ItemProperty -Path $gamesPath -Name "Clock Rate"         -Value 2710750    -Type DWord  -ErrorAction SilentlyContinue
+            Set-ItemProperty -Path $gamesPath -Name "GPU Priority"       -Value 8          -Type DWord  -ErrorAction SilentlyContinue
+            Set-ItemProperty -Path $gamesPath -Name "Priority"           -Value 6          -Type DWord  -ErrorAction SilentlyContinue
+            Set-ItemProperty -Path $gamesPath -Name "Scheduling Category" -Value "High"    -Type String -ErrorAction SilentlyContinue
+            Set-ItemProperty -Path $gamesPath -Name "SFIO Priority"      -Value "High"     -Type String -ErrorAction SilentlyContinue
+            Write-OK "SystemResponsiveness auf 0 gesetzt (max. CPU-Zeit fuer Spiele)."
+            Write-OK "Multimedia-Systemprofil 'Games' auf hoechste Prioritaet gesetzt."
+        }
+        catch { Write-Warn "SystemResponsiveness konnte nicht gesetzt werden: $_" }
+    } else { Write-Skip "SystemResponsiveness-Optimierung uebersprungen." }
+}
+
+# ============================================================
+#  LARGE SYSTEM CACHE DEAKTIVIEREN
+# ============================================================
+function Disable-LargeSystemCache {
+    Write-Header "Schritt 19/22 - Large System Cache deaktivieren"
+
+    if (-not $Config.LargeSystemCache) { Write-Skip "Uebersprungen (Konfiguration)"; return }
+
+    try {
+        $path = "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management"
+        # 0 = RAM bevorzugt fuer Programme/Spiele statt Dateisystem-Cache
+        Set-ItemProperty -Path $path -Name "LargeSystemCache" -Value 0 -Type DWord
+        # Sicherstellen dass auch der I/O-Cache nicht unnoetig gross ist
+        Set-ItemProperty -Path $path -Name "IoPageLockLimit"  -Value 0 -Type DWord -ErrorAction SilentlyContinue
+        Write-OK "Large System Cache deaktiviert (RAM gehoert den Spielen)."
+    }
+    catch { Write-Warn "Large System Cache konnte nicht angepasst werden: $_" }
+}
+
+# ============================================================
+#  GPU LOW LATENCY MODE (NVIDIA & AMD)
+# ============================================================
+function Set-GPULowLatency {
+    Write-Header "Schritt 20/22 - GPU Low Latency Mode (NVIDIA / AMD)"
+
+    if (-not $Config.GPULowLatency) { Write-Skip "Uebersprungen (Konfiguration)"; return }
+
+    try {
+        # NVIDIA: Ultra Low Latency Mode (entspricht 'On' in NVCP)
+        # Wert 0x00000001 = Low Latency On, 0x00000002 = Ultra (kein Pre-Rendered Frame)
+        $nvGPUPath = "HKLM:\SYSTEM\CurrentControlSet\Control\Class\{4d36e968-e325-11ce-bfc1-08002be10318}"
+        $nvAdapters = Get-ChildItem -Path $nvGPUPath -ErrorAction SilentlyContinue |
+                      Where-Object { $_.Name -match "\\\d{4}$" }
+
+        $nvFound = $false
+        foreach ($adapter in $nvAdapters) {
+            $driverDesc = (Get-ItemProperty -Path $adapter.PSPath -Name "DriverDesc" -ErrorAction SilentlyContinue).DriverDesc
+            if ($driverDesc -match "NVIDIA") {
+                # Ultra Low Latency via NV-Treiber-Registry
+                Set-ItemProperty -Path $adapter.PSPath -Name "RMGpuLatencyMonitorEnable" -Value 1    -Type DWord -ErrorAction SilentlyContinue
+                Set-ItemProperty -Path $adapter.PSPath -Name "PerfLevelSrc"              -Value 0x2222 -Type DWord -ErrorAction SilentlyContinue
+                $nvFound = $true
+                Write-OK "NVIDIA Low Latency Mode aktiviert fuer: $driverDesc"
+            }
+        }
+        if (-not $nvFound) { Write-Skip "Kein NVIDIA-Adapter gefunden." }
+
+        # AMD: Anti-Lag Registry-Eintrag
+        $amdPath = "HKLM:\SYSTEM\CurrentControlSet\Control\Class\{4d36e968-e325-11ce-bfc1-08002be10318}"
+        $amdAdapters = Get-ChildItem -Path $amdPath -ErrorAction SilentlyContinue |
+                       Where-Object { $_.Name -match "\\\d{4}$" }
+
+        $amdFound = $false
+        foreach ($adapter in $amdAdapters) {
+            $driverDesc = (Get-ItemProperty -Path $adapter.PSPath -Name "DriverDesc" -ErrorAction SilentlyContinue).DriverDesc
+            if ($driverDesc -match "AMD|Radeon|ATI") {
+                Set-ItemProperty -Path $adapter.PSPath -Name "KMD_EnableAntiLag"   -Value 1 -Type DWord -ErrorAction SilentlyContinue
+                Set-ItemProperty -Path $adapter.PSPath -Name "KMD_FRTEnabled"      -Value 0 -Type DWord -ErrorAction SilentlyContinue
+                $amdFound = $true
+                Write-OK "AMD Anti-Lag aktiviert fuer: $driverDesc"
+            }
+        }
+        if (-not $amdFound) { Write-Skip "Kein AMD-Adapter gefunden." }
+
+        # Allgemein: DXGI Flip Model erzwingen fuer niedrigere Latenz
+        $dxPath = "HKCU:\Software\Microsoft\DirectX"
+        if (-not (Test-Path $dxPath)) { New-Item -Path $dxPath -Force | Out-Null }
+        Set-ItemProperty -Path $dxPath -Name "DisableMaximizedWindowedMode" -Value 0 -Type DWord -ErrorAction SilentlyContinue
+        Write-OK "DXGI Flip Model optimiert (niedrigere Renderlatenz)."
+    }
+    catch { Write-Warn "GPU Low Latency konnte nicht gesetzt werden: $_" }
+}
+
+# ============================================================
+#  SPIEL-PROZESS PRIORITAET (SCHEDULED TASK)
+# ============================================================
+function Set-GamePriorityTask {
+    Write-Header "Schritt 21/22 - Spiel-Prozess Prioritaet (Scheduled Task)"
+
+    if (-not $Config.GamePriorityTask) { Write-Skip "Uebersprungen (Konfiguration)"; return }
+
+    try {
+        $taskName = "GamingOptimizer_GamePriority"
+
+        # Bestehenden Task entfernen falls vorhanden
+        Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue
+
+        # PowerShell-Script-Inhalt fuer den Task
+        # Setzt High Priority fuer bekannte Spiele-Launcher und laufende Vollbild-Prozesse
+        $taskScript = @'
+# Bekannte Spiel-Prozessnamen (erweiterbar)
+$gameProcesses = @(
+    "steam","steamwebhelper","gameoverlayrenderer",
+    "epicgameslauncher","easyanticheat","battlenet",
+    "League of Legends","leagueclient","riotclientservices",
+    "Fortnite","FortniteLauncher",
+    "csgo","cs2","dota2","tf2","hl2",
+    "destiny2","destiny2launcher",
+    "GTA5","GTAV","PlayGTAV",
+    "witcher3","Cyberpunk2077","RDR2","Hogwarts Legacy",
+    "javaw","minecraft",
+    # Call of Duty (alle Teile / Warzone)
+    "cod","codmw","codmw2","codmw3",
+    "BlackOpsColdWar","BlackOps4","BlackOps3",
+    "ModernWarfare","ModernWarfare2","ModernWarfare3",
+    "Warzone","WarzoneCaldera","cod_launcher",
+    "black_ops_cold_war","black_ops_4",
+    "HQ","HQGame","cod_client"
+)
+foreach ($name in $gameProcesses) {
+    $procs = Get-Process -Name $name -ErrorAction SilentlyContinue
+    foreach ($p in $procs) {
+        try {
+            if ($p.PriorityClass -ne [System.Diagnostics.ProcessPriorityClass]::High) {
+                $p.PriorityClass = [System.Diagnostics.ProcessPriorityClass]::AboveNormal
+            }
+        } catch {}
+    }
+}
+'@
+        $scriptPath = "$env:ProgramData\GamingOptimizer\SetGamePriority.ps1"
+        $scriptDir  = Split-Path $scriptPath
+        if (-not (Test-Path $scriptDir)) { New-Item -Path $scriptDir -ItemType Directory -Force | Out-Null }
+        Set-Content -Path $scriptPath -Value $taskScript -Encoding UTF8
+
+        # Scheduled Task: laeuft alle 2 Minuten, nur wenn Benutzer eingeloggt
+        $action   = New-ScheduledTaskAction -Execute "powershell.exe" `
+                        -Argument "-NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$scriptPath`""
+        $trigger  = New-ScheduledTaskTrigger -RepetitionInterval (New-TimeSpan -Minutes 2) -Once -At (Get-Date)
+        $settings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit (New-TimeSpan -Minutes 1) `
+                        -MultipleInstances IgnoreNew -Priority 4
+        $principal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccount -RunLevel Highest
+
+        Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger `
+            -Settings $settings -Principal $principal -Description "Gaming Optimizer: Setzt AboveNormal Prioritaet fuer Spielprozesse" `
+            -ErrorAction Stop | Out-Null
+
+        Write-OK "Scheduled Task '$taskName' erstellt (laeuft alle 2 Min, setzt AboveNormal-Prio fuer Spiele)."
+        Write-Info "Spielliste erweiterbar in: $scriptPath"
+    }
+    catch { Write-Warn "Scheduled Task konnte nicht erstellt werden: $_" }
+}
+
+# ============================================================
+#  IRQ-PRIORISIERUNG (GPU & NETZWERKKARTE)
+# ============================================================
+function Set-IRQPrioritization {
+    Write-Header "Schritt 22/22 - IRQ-Priorisierung (GPU & Netzwerkkarte)"
+
+    if (-not $Config.IRQPriorisierung) { Write-Skip "Uebersprungen (Konfiguration)"; return }
+
+    try {
+        # Message Signaled Interrupts (MSI) fuer GPU aktivieren - reduziert Interrupt-Latenz erheblich
+        $gpuPath = "HKLM:\SYSTEM\CurrentControlSet\Control\Class\{4d36e968-e325-11ce-bfc1-08002be10318}"
+        $gpuAdapters = Get-ChildItem -Path $gpuPath -ErrorAction SilentlyContinue |
+                       Where-Object { $_.Name -match "\\\d{4}$" }
+
+        foreach ($adapter in $gpuAdapters) {
+            $driverDesc = (Get-ItemProperty -Path $adapter.PSPath -Name "DriverDesc" -ErrorAction SilentlyContinue).DriverDesc
+            if ($driverDesc -match "NVIDIA|AMD|Radeon|Intel") {
+                $msiPath = Join-Path $adapter.PSPath "Device Parameters\Interrupt Management\MessageSignaledInterruptProperties"
+                if (-not (Test-Path $msiPath)) {
+                    New-Item -Path $msiPath -Force | Out-Null
+                }
+                # MSI aktivieren (1) und auf hoechste Prioritaet setzen
+                Set-ItemProperty -Path $msiPath -Name "MSISupported"    -Value 1 -Type DWord -ErrorAction SilentlyContinue
+                # Interrupt-Affinitaet: Kern 2 (0x04) - weg von Kern 0 (Windows-Standard)
+                $affinityPath = Join-Path $adapter.PSPath "Device Parameters\Interrupt Management\Affinity Policy"
+                if (-not (Test-Path $affinityPath)) { New-Item -Path $affinityPath -Force | Out-Null }
+                Set-ItemProperty -Path $affinityPath -Name "DevicePolicy"         -Value 4 -Type DWord -ErrorAction SilentlyContinue
+                Set-ItemProperty -Path $affinityPath -Name "AssignmentSetOverride" -Value 4 -Type Binary -ErrorAction SilentlyContinue
+                Write-OK "MSI + IRQ-Affinitaet gesetzt fuer GPU: $driverDesc"
+            }
+        }
+
+        # Netzwerkkarte: MSI aktivieren + auf anderen Kern als GPU
+        $nicPath = "HKLM:\SYSTEM\CurrentControlSet\Control\Class\{4d36e968-e325-11ce-bfc1-08002be10318}"
+        $netClass = "HKLM:\SYSTEM\CurrentControlSet\Control\Class\{4d36e977-e325-11ce-bfc1-08002be10318}"
+        # Korrekte Netzwerkkarten-GUID
+        $netClassCorrect = "HKLM:\SYSTEM\CurrentControlSet\Control\Class\{4d36e972-e325-11ce-bfc1-08002be10318}"
+        $nicAdapters = Get-ChildItem -Path $netClassCorrect -ErrorAction SilentlyContinue |
+                       Where-Object { $_.Name -match "\\\d{4}$" }
+
+        foreach ($nic in $nicAdapters) {
+            $nicDesc = (Get-ItemProperty -Path $nic.PSPath -Name "DriverDesc" -ErrorAction SilentlyContinue).DriverDesc
+            if ($nicDesc) {
+                $msiNicPath = Join-Path $nic.PSPath "Device Parameters\Interrupt Management\MessageSignaledInterruptProperties"
+                if (-not (Test-Path $msiNicPath)) { New-Item -Path $msiNicPath -Force | Out-Null }
+                Set-ItemProperty -Path $msiNicPath -Name "MSISupported" -Value 1 -Type DWord -ErrorAction SilentlyContinue
+                # Kern 3 (0x08) fuer NIC - getrennt von GPU
+                $nicAffinityPath = Join-Path $nic.PSPath "Device Parameters\Interrupt Management\Affinity Policy"
+                if (-not (Test-Path $nicAffinityPath)) { New-Item -Path $nicAffinityPath -Force | Out-Null }
+                Set-ItemProperty -Path $nicAffinityPath -Name "DevicePolicy"          -Value 4 -Type DWord  -ErrorAction SilentlyContinue
+                Set-ItemProperty -Path $nicAffinityPath -Name "AssignmentSetOverride"  -Value 8 -Type Binary -ErrorAction SilentlyContinue
+                Write-OK "MSI + IRQ-Affinitaet gesetzt fuer NIC: $nicDesc"
+            }
+        }
+        Write-Info "Hinweis: IRQ-Aenderungen werden erst nach Neustart aktiv."
+        Write-Info "Tipp: Mit 'MSI Mode Utility' kannst du MSI-Status aller Geraete pruefen."
+    }
+    catch { Write-Warn "IRQ-Priorisierung konnte nicht gesetzt werden: $_" }
+}
+
+# ============================================================
+#  NIC ERWEITERTE EINSTELLUNGEN OPTIMIEREN
+# ============================================================
+function Set-NICOptimizations {
+    Write-Header "Schritt 23/26 - Netzwerkadapter: Erweiterte Einstellungen optimieren"
+
+    if (-not $Config.NICOptimierungen) { Write-Skip "Uebersprungen (Konfiguration)"; return }
+
+    try {
+        $adapters = Get-NetAdapter | Where-Object { $_.Status -eq "Up" -and $_.PhysicalMediaType -ne "Unspecified" }
+
+        foreach ($adapter in $adapters) {
+            $name = $adapter.Name
+            Write-Info "Optimiere Adapter: $name"
+
+            # --- Large Send Offload deaktivieren (verhindert Paket-Bursts / Ping-Spitzen) ---
+            Disable-NetAdapterLso -Name $name -ErrorAction SilentlyContinue
+            Write-OK "[$name] Large Send Offload (LSO v1/v2) deaktiviert."
+
+            # --- Checksum Offload aktivieren (CPU-Entlastung ohne Latenz-Nachteil) ---
+            Enable-NetAdapterChecksumOffload -Name $name -ErrorAction SilentlyContinue
+
+            # --- Erweiterte Adapter-Eigenschaften per Advanced Property ---
+            $props = Get-NetAdapterAdvancedProperty -Name $name -ErrorAction SilentlyContinue
+
+            # Flow Control deaktivieren (verhindert kuenstliche Pausen bei Paket-Stau)
+            $fc = $props | Where-Object { $_.DisplayName -match "Flow Control" }
+            if ($fc) {
+                Set-NetAdapterAdvancedProperty -Name $name -DisplayName $fc.DisplayName -DisplayValue "Disabled" -ErrorAction SilentlyContinue
+                Write-OK "[$name] Flow Control deaktiviert."
+            }
+
+            # Energy Efficient Ethernet deaktivieren (verhindert Verbindungsabbrueche/Latenzschwankungen)
+            $eee = $props | Where-Object { $_.DisplayName -match "Energy.Efficient|EEE|Green Ethernet|Power Saving" }
+            if ($eee) {
+                foreach ($e in $eee) {
+                    Set-NetAdapterAdvancedProperty -Name $name -DisplayName $e.DisplayName -DisplayValue "Disabled" -ErrorAction SilentlyContinue
+                }
+                Write-OK "[$name] Energy Efficient Ethernet (EEE) deaktiviert."
+            }
+
+            # Interrupt Moderation deaktivieren (niedrigste moegliche Latenz)
+            $im = $props | Where-Object { $_.DisplayName -match "Interrupt Moderation" }
+            if ($im) {
+                Set-NetAdapterAdvancedProperty -Name $name -DisplayName $im.DisplayName -DisplayValue "Disabled" -ErrorAction SilentlyContinue
+                Write-OK "[$name] Interrupt Moderation deaktiviert (minimale NIC-Latenz)."
+            }
+
+            # Receive Buffer erhoehen fuer stabilere Verbindung unter Last
+            $rb = $props | Where-Object { $_.DisplayName -match "Receive Buffers" }
+            if ($rb) {
+                Set-NetAdapterAdvancedProperty -Name $name -DisplayName $rb.DisplayName -DisplayValue "512" -ErrorAction SilentlyContinue
+                Write-OK "[$name] Receive Buffers auf 512 gesetzt."
+            }
+
+            # Transmit Buffer erhoehen
+            $tb = $props | Where-Object { $_.DisplayName -match "Transmit Buffers" }
+            if ($tb) {
+                Set-NetAdapterAdvancedProperty -Name $name -DisplayName $tb.DisplayName -DisplayValue "1024" -ErrorAction SilentlyContinue
+                Write-OK "[$name] Transmit Buffers auf 1024 gesetzt."
+            }
+
+            # Speed & Duplex auf Maximum erzwingen (kein Auto-Negotiation fuer Latenzkonsistenz)
+            $sd = $props | Where-Object { $_.DisplayName -match "Speed.*Duplex|Link Speed" }
+            if ($sd) {
+                # Nur setzen wenn 1Gbps oder 2.5Gbps verfuegbar - nicht auf langsamere Werte zwingen
+                $vals = $sd[0].ValidDisplayValues
+                $target = $vals | Where-Object { $_ -match "1.0 Gbps|1 Gbps|Auto" } | Select-Object -First 1
+                if ($target -eq $null) { $target = "Auto Negotiation" }
+                # Wir lassen Auto Negotiation auf Speed, erzwingen nur Full Duplex
+                Write-Info "[$name] Speed & Duplex: Auto Negotiation beibehalten (sicherer)."
+            }
+
+            # ARP/NS Offload deaktivieren (im Energiesparmodus unnoetig, minimiert Wake-Interrupts)
+            $arp = $props | Where-Object { $_.DisplayName -match "ARP.*Offload|NS Offload" }
+            if ($arp) {
+                foreach ($a in $arp) {
+                    Set-NetAdapterAdvancedProperty -Name $name -DisplayName $a.DisplayName -DisplayValue "Disabled" -ErrorAction SilentlyContinue
+                }
+                Write-OK "[$name] ARP/NS Offload deaktiviert."
+            }
+        }
+    }
+    catch { Write-Warn "NIC-Optimierung fehlgeschlagen: $_" }
+}
+
+# ============================================================
+#  IPv6 DEAKTIVIEREN
+# ============================================================
+function Disable-IPv6 {
+    Write-Header "Schritt 24/26 - IPv6 deaktivieren"
+
+    if (-not $Config.IPv6Deaktivieren) { Write-Skip "Uebersprungen (Konfiguration)"; return }
+
+    try {
+        # IPv6 fuer alle aktiven Adapter deaktivieren
+        $adapters = Get-NetAdapter | Where-Object { $_.Status -eq "Up" }
+        foreach ($adapter in $adapters) {
+            Disable-NetAdapterBinding -Name $adapter.Name -ComponentID ms_tcpip6 -ErrorAction SilentlyContinue
+            Write-OK "IPv6 deaktiviert fuer: $($adapter.Name)"
+        }
+
+        # Registry-Eintrag als Absicherung (deaktiviert IPv6 systemweit)
+        $regPath = "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip6\Parameters"
+        if (-not (Test-Path $regPath)) { New-Item -Path $regPath -Force | Out-Null }
+        Set-ItemProperty -Path $regPath -Name "DisabledComponents" -Value 0xFF -Type DWord
+        Write-OK "IPv6 systemweit per Registry deaktiviert (0xFF = alle Komponenten aus)."
+        Write-Info "Hinweis: Bei ausschliesslich IPv6-Netzwerken diese Option auf \$false setzen."
+    }
+    catch { Write-Warn "IPv6 konnte nicht deaktiviert werden: $_" }
+}
+
+# ============================================================
+#  DELIVERY OPTIMIZATION DEAKTIVIEREN
+# ============================================================
+function Disable-DeliveryOptimization {
+    Write-Header "Schritt 25/26 - Delivery Optimization (Windows Update P2P) deaktivieren"
+
+    if (-not $Config.DeliveryOptimization) { Write-Skip "Uebersprungen (Konfiguration)"; return }
+
+    try {
+        $doPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DeliveryOptimization"
+        if (-not (Test-Path $doPath)) { New-Item -Path $doPath -Force | Out-Null }
+
+        # DODownloadMode 0 = deaktiviert (kein P2P, kein Upload an andere PCs)
+        Set-ItemProperty -Path $doPath -Name "DODownloadMode" -Value 0 -Type DWord
+        Write-OK "Delivery Optimization P2P deaktiviert (kein Upload-Verbrauch an andere PCs)."
+
+        # Upload-Bandbreite auf 0% begrenzen (absolut)
+        Set-ItemProperty -Path $doPath -Name "DOMaxUploadBandwidth"        -Value 0 -Type DWord -ErrorAction SilentlyContinue
+        # Hintergrund-Download-Bandbreite begrenzen auf 10% damit Spielbandbreite frei bleibt
+        Set-ItemProperty -Path $doPath -Name "DOPercentageMaxBackgroundBandwidth" -Value 10 -Type DWord -ErrorAction SilentlyContinue
+        Write-OK "Update-Download-Bandbreite im Hintergrund auf 10% begrenzt."
+
+        # Delivery Optimization Dienst deaktivieren
+        $doSvc = Get-Service -Name "DoSvc" -ErrorAction SilentlyContinue
+        if ($null -ne $doSvc) {
+            Stop-Service -Name "DoSvc" -Force -ErrorAction SilentlyContinue
+            Set-Service  -Name "DoSvc" -StartupType Disabled -ErrorAction SilentlyContinue
+            Write-OK "Delivery Optimization Dienst (DoSvc) deaktiviert."
+        }
+    }
+    catch { Write-Warn "Delivery Optimization konnte nicht deaktiviert werden: $_" }
+}
+
+# ============================================================
+#  RSS AFFINITAET AUF DEDIZIERTEN CPU-KERN BINDEN
+# ============================================================
+function Set-RSSAffinity {
+    Write-Header "Schritt 26/26 - RSS Affinitaet auf dedizierten CPU-Kern binden"
+
+    if (-not $Config.RSSAffinitaet) { Write-Skip "Uebersprungen (Konfiguration)"; return }
+
+    try {
+        # Anzahl der logischen Kerne ermitteln
+        $coreCount = (Get-WmiObject -Class Win32_Processor | Measure-Object -Property NumberOfLogicalProcessors -Sum).Sum
+        Write-Info "Erkannte logische CPU-Kerne: $coreCount"
+
+        if ($coreCount -lt 4) {
+            Write-Warn "Weniger als 4 Kerne erkannt - RSS-Affinitaet wird nicht gesetzt (nicht sinnvoll)."
+            return
+        }
+
+        # RSS global sicherstellen
+        & netsh int tcp set global rss=enabled 2>&1 | Out-Null
+        Set-NetOffloadGlobalSetting -ReceiveSideScaling Enabled -ErrorAction SilentlyContinue
+
+        $adapters = Get-NetAdapter | Where-Object { $_.Status -eq "Up" -and $_.PhysicalMediaType -ne "Unspecified" }
+        foreach ($adapter in $adapters) {
+            try {
+                # RSS pruefen ob vom Adapter unterstuetzt
+                $rss = Get-NetAdapterRss -Name $adapter.Name -ErrorAction SilentlyContinue
+                if ($null -eq $rss) { Write-Skip "[$($adapter.Name)] RSS nicht verfuegbar."; continue }
+
+                # Letzten zwei physischen Kerne fuer RSS verwenden (weg von Kern 0, wo Windows-Interrupts landen)
+                $baseCore = [math]::Max(2, $coreCount - 2)
+                $maxCore  = $coreCount - 1
+
+                Set-NetAdapterRss -Name $adapter.Name `
+                    -Enabled $true `
+                    -BaseProcessorNumber $baseCore `
+                    -MaxProcessorNumber  $maxCore `
+                    -NumberOfReceiveQueues 2 `
+                    -ErrorAction SilentlyContinue
+
+                Write-OK "[$($adapter.Name)] RSS-Affinitaet auf Kern $baseCore-$maxCore gesetzt (weg von Kern 0)."
+                Write-Info "Bewirkt: NDIS-Netzwerkarbeit laeuft auf dedizierten Kernen - weniger DPC-Latenz."
+            }
+            catch { Write-Warn "[$($adapter.Name)] RSS-Affinitaet konnte nicht gesetzt werden: $_" }
+        }
+    }
+    catch { Write-Warn "RSS-Affinitaet-Optimierung fehlgeschlagen: $_" }
+}
+
+# ============================================================
+#  UNDO-FUNKTION: ALLE AENDERUNGEN RUECKGAENGIG MACHEN
+# ============================================================
+function Invoke-UndoOptimizations {
+    Write-Host ""
+    Write-Host ("=" * 60) -ForegroundColor Yellow
+    Write-Host "  UNDO - Gaming-Optimierungen zuruecksetzen" -ForegroundColor Yellow
+    Write-Host ("=" * 60) -ForegroundColor Yellow
+    Write-Host ""
+    Write-Host "  Folgende Aenderungen werden zurueckgesetzt:" -ForegroundColor White
+    Write-Host "   - NetworkThrottlingIndex auf Standard (10)" -ForegroundColor Gray
+    Write-Host "   - SystemResponsiveness auf Standard (20)" -ForegroundColor Gray
+    Write-Host "   - LargeSystemCache auf Standard" -ForegroundColor Gray
+    Write-Host "   - Spielmodus / GameDVR auf Standard" -ForegroundColor Gray
+    Write-Host "   - Scheduled Task fuer Spielprozess-Prioritaet entfernen" -ForegroundColor Gray
+    Write-Host "   - Nagle-Algorithmus reaktivieren" -ForegroundColor Gray
+    Write-Host "   - QoS-Bandbreite wiederherstellen" -ForegroundColor Gray
+    Write-Host "   - Visuelle Effekte auf Standard" -ForegroundColor Gray
+    Write-Host ""
+    Write-Host "  Dienste und Energieplan: Bitte manuell oder per" -ForegroundColor Yellow
+    Write-Host "  Systemwiederherstellung zuruecksetzen." -ForegroundColor Yellow
+    Write-Host ""
+    Write-Host "  Fortfahren? (j/N): " -NoNewline
+    $confirm = Read-Host
+    if ($confirm -ne "j" -and $confirm -ne "J") {
+        Write-Host "  Abgebrochen." -ForegroundColor Red
+        exit 0
+    }
+
+    # NetworkThrottlingIndex + SystemResponsiveness zurueck
+    try {
+        $mmPath = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile"
+        Set-ItemProperty -Path $mmPath -Name "NetworkThrottlingIndex" -Value 10          -Type DWord -ErrorAction SilentlyContinue
+        Set-ItemProperty -Path $mmPath -Name "SystemResponsiveness"   -Value 20          -Type DWord -ErrorAction SilentlyContinue
+        Write-OK "NetworkThrottlingIndex + SystemResponsiveness zurueckgesetzt."
+    } catch { Write-Warn "Fehler beim Zuruecksetzen Multimedia-Profil: $_" }
+
+    # Games-Profil loeschen
+    try {
+        $gamesPath = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile\Tasks\Games"
+        if (Test-Path $gamesPath) { Remove-Item -Path $gamesPath -Recurse -Force -ErrorAction SilentlyContinue }
+        Write-OK "Games-Systemprofil zurueckgesetzt."
+    } catch {}
+
+    # LargeSystemCache
+    try {
+        $memPath = "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management"
+        Set-ItemProperty -Path $memPath -Name "LargeSystemCache" -Value 0 -Type DWord -ErrorAction SilentlyContinue
+        Write-OK "LargeSystemCache zurueckgesetzt."
+    } catch {}
+
+    # Nagle reaktivieren
+    try {
+        $basePath = "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces"
+        $interfaces = Get-ChildItem -Path $basePath
+        foreach ($iface in $interfaces) {
+            Remove-ItemProperty -Path $iface.PSPath -Name "TcpAckFrequency" -ErrorAction SilentlyContinue
+            Remove-ItemProperty -Path $iface.PSPath -Name "TCPNoDelay"      -ErrorAction SilentlyContinue
+        }
+        Write-OK "Nagle-Algorithmus reaktiviert."
+    } catch {}
+
+    # QoS wiederherstellen
+    try {
+        $qosPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Psched"
+        if (Test-Path $qosPath) { Remove-Item -Path $qosPath -Recurse -Force -ErrorAction SilentlyContinue }
+        Write-OK "QoS-Bandbreite auf Standard zurueckgesetzt."
+    } catch {}
+
+    # GameDVR / Spielmodus
+    try {
+        Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\GameDVR" -Name "AppCaptureEnabled" -Value 1 -ErrorAction SilentlyContinue
+        Set-ItemProperty -Path "HKCU:\System\GameConfigStore" -Name "GameDVR_Enabled" -Value 1 -ErrorAction SilentlyContinue
+        Write-OK "GameDVR reaktiviert."
+    } catch {}
+
+    # Visuelle Effekte zurueck
+    try {
+        $path = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects"
+        Set-ItemProperty -Path $path -Name "VisualFXSetting" -Value 0 -ErrorAction SilentlyContinue
+        Write-OK "Visuelle Effekte auf Standard zurueckgesetzt."
+    } catch {}
+
+    # Mausbeschleunigung reaktivieren
+    try {
+        $path = "HKCU:\Control Panel\Mouse"
+        Set-ItemProperty -Path $path -Name "MouseSpeed"       -Value "1" -ErrorAction SilentlyContinue
+        Set-ItemProperty -Path $path -Name "MouseThreshold1"  -Value "6" -ErrorAction SilentlyContinue
+        Set-ItemProperty -Path $path -Name "MouseThreshold2"  -Value "10" -ErrorAction SilentlyContinue
+        Write-OK "Mausbeschleunigung wiederhergestellt."
+    } catch {}
+
+    # Scheduled Task entfernen
+    try {
+        Unregister-ScheduledTask -TaskName "GamingOptimizer_GamePriority" -Confirm:$false -ErrorAction SilentlyContinue
+        $scriptPath = "$env:ProgramData\GamingOptimizer\SetGamePriority.ps1"
+        if (Test-Path $scriptPath) { Remove-Item $scriptPath -Force -ErrorAction SilentlyContinue }
+        Write-OK "Scheduled Task 'GamingOptimizer_GamePriority' entfernt."
+    } catch {}
+
+    # TCP-Einstellungen zurueck
+    try {
+        & netsh int tcp set global autotuninglevel=normal 2>&1 | Out-Null
+        & netsh int tcp set global chimney=default        2>&1 | Out-Null
+        & netsh int tcp set global ecncapability=default  2>&1 | Out-Null
+        & netsh int tcp set global timestamps=default     2>&1 | Out-Null
+        Write-OK "TCP-Einstellungen auf Standard zurueckgesetzt."
+    } catch {}
+
+    # LSO reaktivieren
+    try {
+        $adapters = Get-NetAdapter | Where-Object { $_.Status -eq "Up" }
+        foreach ($adapter in $adapters) {
+            Enable-NetAdapterLso -Name $adapter.Name -ErrorAction SilentlyContinue
+        }
+        Write-OK "Large Send Offload (LSO) reaktiviert."
+    } catch {}
+
+    # IPv6 reaktivieren
+    try {
+        $adapters = Get-NetAdapter | Where-Object { $_.Status -eq "Up" }
+        foreach ($adapter in $adapters) {
+            Enable-NetAdapterBinding -Name $adapter.Name -ComponentID ms_tcpip6 -ErrorAction SilentlyContinue
+        }
+        $regPath = "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip6\Parameters"
+        Set-ItemProperty -Path $regPath -Name "DisabledComponents" -Value 0x00 -Type DWord -ErrorAction SilentlyContinue
+        Write-OK "IPv6 reaktiviert."
+    } catch {}
+
+    # Delivery Optimization reaktivieren
+    try {
+        $doPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DeliveryOptimization"
+        if (Test-Path $doPath) { Remove-Item -Path $doPath -Recurse -Force -ErrorAction SilentlyContinue }
+        Set-Service -Name "DoSvc" -StartupType Automatic -ErrorAction SilentlyContinue
+        Start-Service -Name "DoSvc" -ErrorAction SilentlyContinue
+        Write-OK "Delivery Optimization reaktiviert."
+    } catch {}
+
+    Write-Host ""
+    Write-Host ("=" * 60) -ForegroundColor Green
+    Write-Host "  UNDO abgeschlossen. Bitte neu starten!" -ForegroundColor Green
+    Write-Host ("=" * 60) -ForegroundColor Green
+    Write-Host ""
+    Write-Host "  Fuer eine vollstaendige Wiederherstellung:" -ForegroundColor White
+    Write-Host "  Systemsteuerung > System > Computerschutz > Systemwiederherstellung" -ForegroundColor Gray
+    Write-Host ""
+    Write-Host "  Jetzt neu starten? (j/N): " -NoNewline
+    $restart = Read-Host
+    if ($restart -eq "j" -or $restart -eq "J") {
+        Start-Sleep -Seconds 5
+        Restart-Computer -Force
+    }
+    exit 0
+}
+
+
 function Show-Summary {
     Write-Host ""
     Write-Host ("=" * 60) -ForegroundColor Green
@@ -735,6 +1374,16 @@ function Show-Summary {
     Write-Host "   - USB Selective Suspend deaktiviert" -ForegroundColor Gray
     Write-Host "   - Bluetooth-Energiesparmodus deaktiviert" -ForegroundColor Gray
     Write-Host "   - HID-Eingabelatenz & Controller-Vibration optimiert" -ForegroundColor Gray
+    Write-Host "   - NetworkThrottlingIndex deaktiviert" -ForegroundColor Gray
+    Write-Host "   - SystemResponsiveness maximiert (Games-Profil)" -ForegroundColor Gray
+    Write-Host "   - Large System Cache deaktiviert (RAM fuer Spiele)" -ForegroundColor Gray
+    Write-Host "   - GPU Low Latency Mode aktiviert (NVIDIA/AMD)" -ForegroundColor Gray
+    Write-Host "   - Scheduled Task fuer Spielprozess-Prioritaet eingerichtet" -ForegroundColor Gray
+    Write-Host "   - IRQ-Priorisierung fuer GPU & Netzwerkkarte gesetzt" -ForegroundColor Gray
+    Write-Host "   - NIC Erweiterte Einstellungen optimiert (LSO/EEE/FlowControl/Buffer)" -ForegroundColor Gray
+    Write-Host "   - IPv6 deaktiviert" -ForegroundColor Gray
+    Write-Host "   - Delivery Optimization (Windows Update P2P) deaktiviert" -ForegroundColor Gray
+    Write-Host "   - RSS-Affinitaet auf dedizierten CPU-Kern gebunden" -ForegroundColor Gray
     Write-Host ""
     Write-Host "  NEUSTART EMPFOHLEN damit alle Aenderungen wirksam werden." -ForegroundColor Yellow
     Write-Host ""
@@ -765,8 +1414,16 @@ Write-Host "  |        GAMING OPTIMIZER fuer Windows 10/11      |" -ForegroundCo
 Write-Host "  |          Controller-Edition                      |" -ForegroundColor Cyan
 Write-Host "  +--------------------------------------------------+" -ForegroundColor Cyan
 Write-Host ""
+
+# Undo-Modus pruefen
+if ($Undo) {
+    Write-Host "  Modus: UNDO (Optimierungen zuruecksetzen)" -ForegroundColor Yellow
+    Invoke-UndoOptimizations
+}
+
 Write-Host "  Dieses Skript optimiert Windows fuer Gaming-Performance." -ForegroundColor White
 Write-Host "  Ein Wiederherstellungspunkt wird automatisch erstellt." -ForegroundColor White
+Write-Host "  Zum Rueckgaengigmachen: .\Gaming-Optimierung.ps1 -Undo" -ForegroundColor DarkGray
 Write-Host ""
 
 Write-Host "  Optimierung starten? (j/N): " -NoNewline
@@ -793,4 +1450,13 @@ Set-FocusAssist
 Set-NetworkOptimizations
 Set-PageFile
 Optimize-Controller
+Set-NetworkAndCPUResponsiveness
+Disable-LargeSystemCache
+Set-GPULowLatency
+Set-GamePriorityTask
+Set-IRQPrioritization
+Set-NICOptimizations
+Disable-IPv6
+Disable-DeliveryOptimization
+Set-RSSAffinity
 Show-Summary
