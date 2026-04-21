@@ -129,7 +129,8 @@ function New-GamingRestorePoint {
     }
     catch {
         Write-Warn "Wiederherstellungspunkt konnte nicht erstellt werden: $_"
-        $continue = Read-Host "  Trotzdem fortfahren? (j/N)"
+        Write-Host "  Trotzdem fortfahren? (j/N): " -NoNewline
+        $continue = Read-Host
         if ($continue -ne "j" -and $continue -ne "J") {
             Write-Host "  Abgebrochen." -ForegroundColor Red
             exit 1
@@ -742,7 +743,8 @@ function Show-Summary {
     Write-Host ""
     Write-Host ("=" * 60) -ForegroundColor Green
 
-    $restart = Read-Host "  Jetzt neu starten? (j/N)"
+    Write-Host "  Jetzt neu starten? (j/N): " -NoNewline
+    $restart = Read-Host
     if ($restart -eq "j" -or $restart -eq "J") {
         Write-Host "  Starte in 10 Sekunden neu..." -ForegroundColor Yellow
         Start-Sleep -Seconds 10
@@ -767,7 +769,8 @@ Write-Host "  Dieses Skript optimiert Windows fuer Gaming-Performance." -Foregro
 Write-Host "  Ein Wiederherstellungspunkt wird automatisch erstellt." -ForegroundColor White
 Write-Host ""
 
-$confirm = Read-Host "  Optimierung starten? (j/N)"
+Write-Host "  Optimierung starten? (j/N): " -NoNewline
+$confirm = Read-Host
 if ($confirm -ne "j" -and $confirm -ne "J") {
     Write-Host "  Abgebrochen." -ForegroundColor Red
     exit 0
