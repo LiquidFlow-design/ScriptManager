@@ -266,8 +266,6 @@ ipcMain.handle('lib:openCsv', async () => {
 // ── Git-Sync: PS1-Scripte aus Repo aktualisieren ────────────────────────
 ipcMain.handle('git:sync', async (_e, repoUrl, branch) => {
   const usedBranch = branch || 'main';
-  const gitDir     = path.join(LIB_DIR, '.git');
-  const isRepo     = fs.existsSync(gitDir);
   const results    = { success: false, output: '', newFiles: [], updatedFiles: [] };
 
   // Git verfügbar?
@@ -277,58 +275,48 @@ ipcMain.handle('git:sync', async (_e, repoUrl, branch) => {
     return { ...results, error: 'Git nicht gefunden. Bitte Git installieren.' };
   }
 
-  // Ordner nicht leer, aber kein Repo → Hinweis statt Absturz
-  if (!isRepo && fs.existsSync(LIB_DIR) && fs.readdirSync(LIB_DIR).length > 0) {
-    return {
-      ...results,
-      error: 'lib-Ordner ist nicht leer und enthält kein Git-Repo.\n' +
-             'Bitte Inhalt sichern, Ordner leeren und erneut "Scripte aktualisieren" klicken.'
-    };
-  }
+  // Temporärer Klon-Ordner neben LIB_DIR
+  const tmpDir = path.join(APP_DATA, '_git_tmp');
 
   try {
-    if (!isRepo) {
-      // ── Erst-Einrichtung: Sparse-Checkout, nur /lib aus dem Repo ──
-      if (!fs.existsSync(LIB_DIR)) fs.mkdirSync(LIB_DIR, { recursive: true });
+    // Alten tmp-Ordner aufräumen falls vorhanden
+    if (fs.existsSync(tmpDir)) fs.rmSync(tmpDir, { recursive: true, force: true });
 
-      const exec = (cmd, opts = {}) =>
-        cp.execSync(cmd, { encoding: 'utf8', timeout: 30000, ...opts });
+    // Repo flach klonen in tmp (nur aktueller Stand, keine History)
+    const out = cp.execSync(
+      `git clone --depth 1 --branch ${usedBranch} --filter=blob:none "${repoUrl}" "${tmpDir}"`,
+      { encoding: 'utf8', timeout: 60000 }
+    );
+    results.output = out;
 
-      exec('git init',                                          { cwd: LIB_DIR });
-      exec(`git remote add origin "${repoUrl}"`,               { cwd: LIB_DIR });
-      exec('git config core.sparseCheckout true',              { cwd: LIB_DIR });
-      exec('git sparse-checkout set lib',                      { cwd: LIB_DIR });
-      exec(`git fetch --depth 1 origin ${usedBranch}`,        { cwd: LIB_DIR });
-      const out = exec(`git checkout ${usedBranch}`,           { cwd: LIB_DIR });
-
-      results.output = out;
-
-    } else {
-      // ── Folge-Updates: pull, PS1-Diff ermitteln ──
-      const currentRemote = cp.execSync(
-        'git remote get-url origin', { cwd: LIB_DIR, encoding: 'utf8' }
-      ).trim();
-      if (currentRemote !== repoUrl) {
-        cp.execSync(`git remote set-url origin "${repoUrl}"`, { cwd: LIB_DIR });
-      }
-
-      // PS1-Dateien VOR dem Pull merken (direkt in LIB_DIR, nicht im lib/-Unterordner)
-      const before = fs.readdirSync(LIB_DIR).filter(f => f.endsWith('.ps1'));
-
-      const out = cp.execSync(
-        `git pull origin ${usedBranch} --ff-only`,
-        { cwd: LIB_DIR, timeout: 30000, encoding: 'utf8' }
-      );
-
-      const after          = fs.readdirSync(LIB_DIR).filter(f => f.endsWith('.ps1'));
-      results.newFiles     = after.filter(f => !before.includes(f));
-      results.updatedFiles = after.filter(f =>  before.includes(f));
-      results.output       = out;
+    // Prüfen ob lib/-Unterordner vorhanden
+    const tmpLibPath = path.join(tmpDir, 'lib');
+    if (!fs.existsSync(tmpLibPath)) {
+      throw new Error('lib/-Ordner im Repo nicht gefunden. Bitte Repo-Struktur prüfen.');
     }
 
-    results.success = true;
+    // PS1s aus tmpDir/lib/ nach LIB_DIR kopieren, Diff ermitteln
+    const ps1s  = fs.readdirSync(tmpLibPath).filter(f => f.toLowerCase().endsWith('.ps1'));
+    const before = fs.existsSync(LIB_DIR)
+      ? fs.readdirSync(LIB_DIR).filter(f => f.toLowerCase().endsWith('.ps1'))
+      : [];
+
+    if (!fs.existsSync(LIB_DIR)) fs.mkdirSync(LIB_DIR, { recursive: true });
+    for (const f of ps1s) {
+      fs.copyFileSync(path.join(tmpLibPath, f), path.join(LIB_DIR, f));
+    }
+
+    results.newFiles     = ps1s.filter(f => !before.includes(f));
+    results.updatedFiles = ps1s.filter(f =>  before.includes(f));
+    results.success      = true;
+
+    // Tmp-Ordner entfernen
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+
     return results;
   } catch (e) {
+    // Aufräumen auch im Fehlerfall
+    try { if (fs.existsSync(tmpDir)) fs.rmSync(tmpDir, { recursive: true, force: true }); } catch (_) {}
     return { ...results, error: e.message, output: e.stderr || e.message };
   }
 });
