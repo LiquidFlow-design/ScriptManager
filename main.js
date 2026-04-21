@@ -268,6 +268,15 @@ ipcMain.handle('git:sync', async (_e, repoUrl, branch) => {
   const usedBranch = branch || 'main';
   const results    = { success: false, output: '', newFiles: [], updatedFiles: [] };
 
+  // Git-Ordner enthalten Read-only-Dateien (z.B. .git/objects) → vor rmSync Flags entfernen
+  const rmSafe = (dirPath) => {
+    if (!fs.existsSync(dirPath)) return;
+    try {
+      cp.execSync(`attrib -R "${dirPath}\\*.*" /S /D`, { timeout: 10000 });
+    } catch (_) { /* attrib-Fehler ignorieren, rmSync versucht es trotzdem */ }
+    fs.rmSync(dirPath, { recursive: true, force: true });
+  };
+
   // Git verfügbar?
   try {
     cp.execSync('git --version', { timeout: 5000 });
@@ -280,7 +289,7 @@ ipcMain.handle('git:sync', async (_e, repoUrl, branch) => {
 
   try {
     // Alten tmp-Ordner aufräumen falls vorhanden
-    if (fs.existsSync(tmpDir)) fs.rmSync(tmpDir, { recursive: true, force: true });
+    if (fs.existsSync(tmpDir)) rmSafe(tmpDir);
 
     // Repo flach klonen in tmp (nur aktueller Stand, keine History)
     const out = cp.execSync(
@@ -311,12 +320,12 @@ ipcMain.handle('git:sync', async (_e, repoUrl, branch) => {
     results.success      = true;
 
     // Tmp-Ordner entfernen
-    fs.rmSync(tmpDir, { recursive: true, force: true });
+    rmSafe(tmpDir);
 
     return results;
   } catch (e) {
     // Aufräumen auch im Fehlerfall
-    try { if (fs.existsSync(tmpDir)) fs.rmSync(tmpDir, { recursive: true, force: true }); } catch (_) {}
+    try { rmSafe(tmpDir); } catch (_) {}
     return { ...results, error: e.message, output: e.stderr || e.message };
   }
 });
