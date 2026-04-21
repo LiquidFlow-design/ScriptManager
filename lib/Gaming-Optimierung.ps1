@@ -1,4 +1,4 @@
-﻿﻿#Requires -RunAsAdministrator
+#Requires -RunAsAdministrator
 <#
 .SYNOPSIS
     Windows Gaming-Optimierungsskript
