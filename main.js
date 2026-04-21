@@ -265,9 +265,10 @@ ipcMain.handle('lib:openCsv', async () => {
 
 // ── Git-Sync: PS1-Scripte aus Repo aktualisieren ────────────────────────
 ipcMain.handle('git:sync', async (_e, repoUrl, branch) => {
-  const gitDir = path.join(LIB_DIR, '.git');
-  const isRepo = fs.existsSync(gitDir);
-  const results = { success: false, output: '', newFiles: [], updatedFiles: [] };
+  const usedBranch = branch || 'main';
+  const gitDir     = path.join(LIB_DIR, '.git');
+  const isRepo     = fs.existsSync(gitDir);
+  const results    = { success: false, output: '', newFiles: [], updatedFiles: [] };
 
   // Git verfügbar?
   try {
@@ -276,29 +277,55 @@ ipcMain.handle('git:sync', async (_e, repoUrl, branch) => {
     return { ...results, error: 'Git nicht gefunden. Bitte Git installieren.' };
   }
 
+  // Ordner nicht leer, aber kein Repo → Hinweis statt Absturz
+  if (!isRepo && fs.existsSync(LIB_DIR) && fs.readdirSync(LIB_DIR).length > 0) {
+    return {
+      ...results,
+      error: 'lib-Ordner ist nicht leer und enthält kein Git-Repo.\n' +
+             'Bitte Inhalt sichern, Ordner leeren und erneut "Scripte aktualisieren" klicken.'
+    };
+  }
+
   try {
     if (!isRepo) {
-      // Erst-Klonen: nur lib-Unterordner (sparse checkout)
-      const out = cp.execSync(
-        `git clone --depth 1 --filter=blob:none --sparse "${repoUrl}" "${LIB_DIR}"`,
-        { timeout: 30000, encoding: 'utf8' }
-      );
-      cp.execSync(`git sparse-checkout set lib`, { cwd: LIB_DIR, timeout: 10000 });
+      // ── Erst-Einrichtung: Sparse-Checkout, nur /lib aus dem Repo ──
+      if (!fs.existsSync(LIB_DIR)) fs.mkdirSync(LIB_DIR, { recursive: true });
+
+      const exec = (cmd, opts = {}) =>
+        cp.execSync(cmd, { encoding: 'utf8', timeout: 30000, ...opts });
+
+      exec('git init',                                          { cwd: LIB_DIR });
+      exec(`git remote add origin "${repoUrl}"`,               { cwd: LIB_DIR });
+      exec('git config core.sparseCheckout true',              { cwd: LIB_DIR });
+      exec('git sparse-checkout set lib',                      { cwd: LIB_DIR });
+      exec(`git fetch --depth 1 origin ${usedBranch}`,        { cwd: LIB_DIR });
+      const out = exec(`git checkout ${usedBranch}`,           { cwd: LIB_DIR });
+
       results.output = out;
+
     } else {
-      // Pull
-      const remote = cp.execSync('git remote get-url origin', { cwd: LIB_DIR, encoding: 'utf8' }).trim();
-      if (remote !== repoUrl) {
+      // ── Folge-Updates: pull, PS1-Diff ermitteln ──
+      const currentRemote = cp.execSync(
+        'git remote get-url origin', { cwd: LIB_DIR, encoding: 'utf8' }
+      ).trim();
+      if (currentRemote !== repoUrl) {
         cp.execSync(`git remote set-url origin "${repoUrl}"`, { cwd: LIB_DIR });
       }
+
+      // PS1-Dateien VOR dem Pull merken (direkt in LIB_DIR, nicht im lib/-Unterordner)
       const before = fs.readdirSync(LIB_DIR).filter(f => f.endsWith('.ps1'));
-      const out    = cp.execSync(`git pull origin ${branch || 'main'} --ff-only`,
-                                  { cwd: LIB_DIR, timeout: 30000, encoding: 'utf8' });
-      const after  = fs.readdirSync(LIB_DIR).filter(f => f.endsWith('.ps1'));
+
+      const out = cp.execSync(
+        `git pull origin ${usedBranch} --ff-only`,
+        { cwd: LIB_DIR, timeout: 30000, encoding: 'utf8' }
+      );
+
+      const after          = fs.readdirSync(LIB_DIR).filter(f => f.endsWith('.ps1'));
       results.newFiles     = after.filter(f => !before.includes(f));
-      results.updatedFiles = after.filter(f => before.includes(f));
+      results.updatedFiles = after.filter(f =>  before.includes(f));
       results.output       = out;
     }
+
     results.success = true;
     return results;
   } catch (e) {
@@ -318,16 +345,28 @@ ipcMain.handle('git:status', async () => {
   if (!fs.existsSync(gitDir)) return { available: false, noRepo: true };
 
   try {
-    cp.execSync('git fetch origin', { cwd: LIB_DIR, timeout: 15000 });
-    const local  = cp.execSync('git rev-parse HEAD',          { cwd: LIB_DIR, encoding: 'utf8' }).trim();
-    const remote = cp.execSync('git rev-parse origin/main',   { cwd: LIB_DIR, encoding: 'utf8' }).trim();
+    // Branch aus Tracking-Konfiguration lesen (Fallback: main)
+    let trackingBranch = 'main';
+    try {
+      trackingBranch = cp.execSync(
+        'git rev-parse --abbrev-ref --symbolic-full-name @{u}',
+        { cwd: LIB_DIR, encoding: 'utf8' }
+      ).trim().replace('origin/', '');
+    } catch { /* Fallback bleibt 'main' */ }
+
+    cp.execSync(`git fetch origin ${trackingBranch}`, { cwd: LIB_DIR, timeout: 15000 });
+    const local  = cp.execSync('git rev-parse HEAD',
+                               { cwd: LIB_DIR, encoding: 'utf8' }).trim();
+    const remote = cp.execSync(`git rev-parse origin/${trackingBranch}`,
+                               { cwd: LIB_DIR, encoding: 'utf8' }).trim();
     const log    = cp.execSync(`git log ${local}..${remote} --oneline`,
                                { cwd: LIB_DIR, encoding: 'utf8' }).trim();
     return {
-      available:    local !== remote,
-      localHash:    local.slice(0, 7),
-      remoteHash:   remote.slice(0, 7),
-      commitLog:    log,
+      available:  local !== remote,
+      localHash:  local.slice(0, 7),
+      remoteHash: remote.slice(0, 7),
+      commitLog:  log,
+      branch:     trackingBranch,
     };
   } catch (e) {
     return { available: false, error: e.message };

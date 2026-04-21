@@ -1,6 +1,6 @@
 {
   "name": "ps-script-manager",
-  "version": "2.0.1",
+  "version": "2.0.3",
   "description": "PS Script Manager - PowerShell Script Verwaltung",
   "main": "main.js",
   "author": "Tobias Scherer",
@@ -36,7 +36,8 @@
     ],
     "win": {
       "target": "nsis",
-      "requestedExecutionLevel": "requireAdministrator"
+      "requestedExecutionLevel": "requireAdministrator",
+      "artifactName": "PS.Script.Manager.Setup.${version}.${ext}"
     },
     "nsis": {
       "oneClick": false,
