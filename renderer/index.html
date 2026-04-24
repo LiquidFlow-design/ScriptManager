@@ -178,6 +178,58 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;background:ra
 .toast.ok{border-color:var(--green);color:var(--green);}.toast.err{border-color:var(--red);color:var(--red);}.toast.info{border-color:var(--accent1);color:var(--accent1);}
 @keyframes slideIn{from{transform:translateX(30px);opacity:0;}to{transform:translateX(0);opacity:1;}}
 .empty-state{text-align:center;padding:40px 20px;color:var(--muted);}.empty-state .icon{font-size:40px;margin-bottom:12px;opacity:.4;}
+/* FAV STAR */
+.fav-btn{background:transparent;border:none;cursor:pointer;font-size:18px;padding:2px 4px;transition:transform .15s;}
+.fav-btn:hover{transform:scale(1.3);}
+/* CHAIN BUILDER */
+.chain-builder-wrap{display:flex;flex-direction:column;}
+.chain-connector{display:flex;flex-direction:column;align-items:center;padding:2px 0;flex-shrink:0;gap:0;}
+.chain-connector-line{width:2px;height:10px;background:linear-gradient(180deg,var(--accent1),var(--accent2));opacity:.5;}
+.chain-connector-arrow{color:var(--accent1);font-size:10px;opacity:.8;line-height:1;margin-top:-1px;}
+.chain-step-row{display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;transition:border-color .2s;}
+.chain-step-row:hover,.chain-step-row:focus-within{border-color:rgba(124,106,247,.6);}
+.chain-step-header{display:flex;align-items:center;gap:10px;padding:10px 14px;}
+.chain-step-num{width:26px;height:26px;border-radius:50%;background:linear-gradient(135deg,var(--accent1),var(--accent2));color:#fff;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 2px 8px rgba(124,106,247,.35);}
+.chain-step-info{flex:1;}
+.chain-step-name{font-size:13px;font-weight:700;}
+.chain-step-datei{font-size:11px;color:var(--accent3);font-family:'JetBrains Mono',monospace;margin-top:1px;}
+.chain-step-edit{background:rgba(0,0,0,.25);border-top:1px solid rgba(37,37,64,.8);padding:10px 14px;display:flex;flex-direction:column;gap:8px;}
+.chain-step-edit-row{display:flex;align-items:center;gap:10px;}
+.chain-edit-label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;width:68px;flex-shrink:0;}
+.chain-edit-input{background:var(--card);border:1px solid var(--border);border-radius:7px;padding:5px 10px;color:var(--text);font-family:'Syne',sans-serif;font-size:12px;outline:none;flex:1;transition:border-color .2s;}
+.chain-edit-input:focus{border-color:var(--accent1);}
+.pause-slider{-webkit-appearance:none;appearance:none;flex:1;height:4px;border-radius:2px;background:var(--border);outline:none;cursor:pointer;}
+.pause-slider::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:16px;height:16px;border-radius:50%;background:linear-gradient(135deg,var(--accent1),var(--accent2));cursor:pointer;box-shadow:0 2px 6px rgba(124,106,247,.5);}
+.pause-slider::-moz-range-thumb{width:16px;height:16px;border-radius:50%;background:linear-gradient(135deg,var(--accent1),var(--accent2));cursor:pointer;border:none;}
+.pause-value{font-size:12px;font-weight:700;color:var(--accent1);font-family:'JetBrains Mono',monospace;min-width:36px;text-align:right;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;border-radius:50%;background:linear-gradient(135deg,var(--accent1),var(--accent2));cursor:pointer;box-shadow:0 2px 6px rgba(124,106,247,.5);}
+input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;background:linear-gradient(135deg,var(--accent1),var(--accent2));cursor:pointer;border:none;}
+input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{opacity:1;height:20px;}
+.chain-step-move{display:flex;flex-direction:column;gap:1px;flex-shrink:0;}
+.move-btn{width:22px;height:17px;border:none;border-radius:4px;background:transparent;color:var(--muted);cursor:pointer;font-size:9px;display:flex;align-items:center;justify-content:center;transition:all .15s;}
+.move-btn:hover{background:var(--border);color:var(--text);}
+.move-btn:disabled{opacity:.2;cursor:default;}
+/* CHAIN MONITOR */
+.monitor-step{display:flex;align-items:flex-start;gap:12px;padding:10px 0;border-bottom:1px solid rgba(37,37,64,.4);}
+.monitor-step-icon{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;margin-top:2px;}
+.monitor-step-icon.waiting{background:rgba(100,116,139,.2);color:var(--muted);}
+.monitor-step-icon.running{background:rgba(251,191,36,.2);color:var(--yellow);animation:pulse .8s ease infinite;}
+.monitor-step-icon.ok{background:rgba(52,211,153,.2);color:var(--green);}
+.monitor-step-icon.err{background:rgba(248,113,113,.2);color:var(--red);}
+.monitor-step-icon.skip{background:rgba(100,116,139,.15);color:var(--muted);}
+@keyframes pulse{0%,100%{opacity:1;}50%{opacity:.4;}}
+.monitor-step-body{flex:1;min-width:0;}
+.monitor-step-name{font-weight:700;font-size:13px;margin-bottom:4px;}
+.monitor-step-output{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);max-height:80px;overflow-y:auto;background:rgba(0,0,0,.3);border-radius:6px;padding:6px 8px;display:none;white-space:pre-wrap;word-break:break-all;}
+.monitor-step-output.visible{display:block;}
+.monitor-step-output .t-stderr{color:var(--red);}
+/* SCHEDULE */
+.schedule-row{display:grid;grid-template-columns:1fr 120px 150px 100px 80px;align-items:center;gap:12px;padding:11px 20px;border-bottom:1px solid rgba(37,37,64,.5);}
+.schedule-row:hover{background:rgba(124,106,247,.04);}
+.sched-badge{display:inline-block;padding:2px 9px;border-radius:20px;font-size:11px;font-weight:700;}
+.sched-badge.einmalig{background:rgba(56,189,248,.15);color:var(--accent3);}
+.sched-badge.taeglich{background:rgba(52,211,153,.15);color:var(--green);}
+.sched-badge.woechentlich{background:rgba(192,132,252,.15);color:var(--accent2);}
 </style>
 </head>
 <body>
@@ -187,7 +239,7 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;background:ra
   <div class="titlebar-controls">
     <button class="tb-btn tb-min" onclick="window.api.window.minimize()">─</button>
     <button class="tb-btn tb-max" onclick="window.api.window.maximize()">□</button>
-    <button class="tb-btn tb-cls" onclick="window.api.window.close()">✕</button>
+    <button class="tb-btn tb-cls" onclick="window.api.window.close()" title="In Tray minimieren (läuft weiter)">✕</button>
   </div>
 </div>
 <div class="shell">
@@ -200,13 +252,19 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;background:ra
     <nav class="nav">
       <div class="nav-section">Navigation</div>
       <div class="nav-item active" onclick="showPage('scripts')"><span class="icon">📋</span> Scripts<span class="nav-badge" id="badge-count">0</span></div>
+      <div class="nav-item" onclick="showPage('favorites')"><span class="icon">⭐</span> Favoriten<span class="nav-badge" id="badge-favs" style="background:var(--yellow);color:#000">0</span></div>
+      <div class="nav-item" onclick="showPage('chains')"><span class="icon">🔗</span> Verkettungen<span class="nav-badge" id="badge-chains">0</span></div>
+      <div class="nav-item" onclick="showPage('scheduler')"><span class="icon">🕐</span> Scheduler</div>
       <div class="nav-item" onclick="showPage('logs')"><span class="icon">📜</span> Logs</div>
       <div class="nav-section">System</div>
       <div class="nav-item" onclick="showPage('update')"><span class="icon">🔄</span> Updates<span class="nav-badge" id="badge-updates" style="display:none;background:var(--yellow);color:#000">!</span></div>
       <div class="nav-item" onclick="showPage('settings')"><span class="icon">⚙️</span> Einstellungen</div>
       <div class="nav-item" onclick="showPage('about')"><span class="icon">ℹ️</span> Info</div>
     </nav>
-    <div class="sidebar-footer"><span class="status-dot"></span>DB: SQLite aktiv</div>
+    <div class="sidebar-footer">
+      <div><span class="status-dot"></span>DB: SQLite aktiv</div>
+      <div style="margin-top:4px;font-size:10px;color:rgba(100,116,139,.6)">✕ = In Tray minimieren</div>
+    </div>
   </aside>
   <!-- MAIN -->
   <main class="main">
@@ -251,6 +309,65 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;background:ra
         </div>
       </div>
 
+      <!-- PAGE: FAVORITES -->
+      <div class="page" id="page-favorites">
+        <div class="stats-row" style="grid-template-columns:repeat(2,1fr)">
+          <div class="stat-card"><div class="stat-label">Favoriten</div><div class="stat-value" id="fav-count">0</div><div class="stat-sub">markierte Scripts</div><div class="stat-icon">⭐</div></div>
+          <div class="stat-card"><div class="stat-label">Schnellstart</div><div class="stat-value" style="font-size:14px;color:var(--muted)">Klicke ▶</div><div class="stat-sub">direkt ausführen</div><div class="stat-icon">▶️</div></div>
+        </div>
+        <div class="panel" style="flex:1">
+          <div class="panel-header"><span class="panel-title">⭐ Favoriten</span><span style="font-size:12px;color:var(--muted)">Stern in der Script-Liste klicken um Favorit zu setzen</span></div>
+          <div id="fav-list" style="flex:1;overflow-y:auto">
+            <div class="empty-state"><div class="icon">⭐</div><p>Noch keine Favoriten. Klicke den ⭐-Button in der Script-Liste.</p></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- PAGE: CHAINS -->
+      <div class="page" id="page-chains">
+        <div class="panels" style="grid-template-columns:1fr 420px">
+          <!-- Chain-Liste -->
+          <div class="panel">
+            <div class="panel-header">
+              <span class="panel-title">🔗 Verkettungen</span>
+              <button class="btn btn-primary btn-sm" onclick="openChainModal()">＋ Neue Verkettung</button>
+            </div>
+            <div id="chain-list" style="flex:1;overflow-y:auto">
+              <div class="empty-state"><div class="icon">🔗</div><p>Noch keine Verkettungen angelegt.</p></div>
+            </div>
+          </div>
+          <!-- Chain-Detail / Builder -->
+          <div class="panel">
+            <div class="panel-header"><span class="panel-title" id="chain-detail-title">📄 Detail</span>
+              <div class="panel-actions" id="chain-detail-actions" style="display:none">
+                <button class="btn btn-green btn-sm" onclick="runSelectedChain()">▶ Ausführen</button>
+                <button class="btn btn-ghost btn-sm" onclick="editSelectedChain()">✏️ Bearbeiten</button>
+              </div>
+            </div>
+            <div id="chain-detail-panel">
+              <div class="detail-empty"><div style="font-size:32px;opacity:.3">👆</div><div>Verkettung auswählen</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- PAGE: SCHEDULER -->
+      <div class="page" id="page-scheduler">
+        <div class="panel" style="flex:1">
+          <div class="panel-header">
+            <span class="panel-title">🕐 Geplante Ausführungen</span>
+            <button class="btn btn-primary btn-sm" onclick="openScheduleModal()">＋ Neu planen</button>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 120px 150px 100px 80px;padding:8px 20px;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;border-bottom:1px solid var(--border)">
+            <span>Name / Ziel</span><span>Typ</span><span>Zeitpunkt</span><span>Letzter Lauf</span><span>Aktionen</span>
+          </div>
+          <div id="schedule-list" style="flex:1;overflow-y:auto">
+            <div class="empty-state"><div class="icon">🕐</div><p>Noch keine geplanten Ausführungen.</p></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- PAGE: LOGS -->
       <!-- PAGE: LOGS -->
       <div class="page" id="page-logs">
         <div class="panel" style="flex:1;min-height:0">
@@ -488,6 +605,151 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;background:ra
   </div>
 </div>
 
+<!-- MODAL: Chain anlegen/bearbeiten -->
+<div class="modal-overlay" id="modal-chain">
+  <div class="modal" style="width:640px;max-width:96vw;max-height:90vh">
+    <div class="modal-header">
+      <span style="font-size:18px">&#x1F517;</span>
+      <span class="modal-title" id="chain-modal-title" style="margin-left:6px">Verkettung erstellen</span>
+      <button class="icon-btn" onclick="closeChainModal()" style="font-size:18px;color:var(--muted)">&#x2715;</button>
+    </div>
+    <div class="modal-body" style="gap:16px">
+      <input type="hidden" id="chain-modal-id">
+
+      <!-- Allgemein -->
+      <div style="background:var(--surface);border-radius:10px;padding:14px 16px;display:flex;flex-direction:column;gap:12px">
+        <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1.5px;font-weight:700">&#x2699;&#xFE0F; Allgemein</div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Name *</label>
+            <input type="text" class="form-input" id="chain-modal-name" placeholder="Gaming Setup komplett">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Bei Fehler</label>
+            <select class="form-input" id="chain-modal-fehler">
+              <option value="stop">&#x1F6D1; Stoppen</option>
+              <option value="weiter">&#x25B6; Weiter ausf&#xFC;hren</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Beschreibung</label>
+          <input type="text" class="form-input" id="chain-modal-beschreibung" placeholder="Was macht diese Verkettung?">
+        </div>
+      </div>
+
+      <!-- Schritte -->
+      <div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+          <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1.5px;font-weight:700">&#x1F4CB; Schritte</div>
+          <span id="chain-step-counter" style="font-size:11px;background:rgba(124,106,247,.2);color:var(--accent1);padding:2px 9px;border-radius:20px;font-weight:700">0</span>
+        </div>
+        <!-- Hinzufügen-Zeile -->
+        <div style="display:flex;gap:8px;align-items:center;padding:10px 12px;background:rgba(124,106,247,.05);border:1px dashed rgba(124,106,247,.3);border-radius:10px;margin-bottom:12px">
+          <select id="chain-script-select" style="flex:1;min-width:0;background:var(--card);border:1px solid var(--border);border-radius:7px;padding:6px 10px;color:var(--text);font-family:'Syne',sans-serif;font-size:12px;outline:none"></select>
+          <input type="text" id="chain-step-params" placeholder="Parameter (optional)" style="width:160px;background:var(--card);border:1px solid var(--border);border-radius:7px;padding:6px 10px;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:11px;outline:none">
+          <button class="btn btn-primary btn-sm" onclick="addChainStep()" style="white-space:nowrap;flex-shrink:0">+ Schritt</button>
+        </div>
+        <!-- Schritt-Liste -->
+        <div id="chain-steps-builder" style="max-height:320px;overflow-y:auto"></div>
+        <div id="chain-empty-hint" style="color:var(--muted);font-size:12px;text-align:center;padding:16px;background:rgba(255,255,255,.02);border-radius:8px;border:1px dashed var(--border)">
+          Noch keine Schritte &mdash; Script ausw&#xE4;hlen und <strong>+ Schritt</strong> klicken.
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <span style="font-size:11px;color:var(--muted);flex:1">Reihenfolge per &#x25B2;&#x25BC; &middot; Pause vor jedem Schritt einstellbar</span>
+      <button class="btn btn-ghost" onclick="closeChainModal()">Abbrechen</button>
+      <button class="btn btn-primary" onclick="saveChain()">&#x1F4BE; Speichern</button>
+    </div>
+  </div>
+</div>
+<!-- MODAL: Schedule anlegen/bearbeiten -->
+<div class="modal-overlay" id="modal-schedule">
+  <div class="modal" style="width:500px">
+    <div class="modal-header">
+      <span class="modal-title" id="schedule-modal-title">Ausführung planen</span>
+      <button class="icon-btn" onclick="closeScheduleModal()" style="font-size:18px;color:var(--muted)">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="sched-modal-id">
+      <div class="form-group"><label class="form-label">Name *</label><input type="text" class="form-input" id="sched-name" placeholder="Täglicher Update-Check"></div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Ziel-Typ</label>
+          <select class="form-input" id="sched-target-typ" onchange="updateSchedTargetList()">
+            <option value="script">📜 Script</option>
+            <option value="chain">🔗 Verkettung</option>
+          </select>
+        </div>
+        <div class="form-group"><label class="form-label">Ziel</label>
+          <select class="form-input" id="sched-target-id"></select>
+        </div>
+      </div>
+      <div class="form-group"><label class="form-label">Wiederholung</label>
+        <select class="form-input" id="sched-typ" onchange="updateSchedForm()">
+          <option value="einmalig">📅 Einmalig</option>
+          <option value="taeglich">🔁 Täglich</option>
+          <option value="woechentlich">📆 Wöchentlich</option>
+        </select>
+      </div>
+      <!-- Einmalig -->
+      <div class="form-group" id="sched-field-einmalig">
+        <label class="form-label">Datum &amp; Uhrzeit</label>
+        <input type="datetime-local" class="form-input" id="sched-einmalig-am">
+      </div>
+      <!-- Täglich -->
+      <div class="form-group" id="sched-field-taeglich" style="display:none">
+        <label class="form-label">Uhrzeit</label>
+        <input type="time" class="form-input" id="sched-taeglich-time" style="max-width:150px">
+      </div>
+      <!-- Wöchentlich -->
+      <div id="sched-field-woechentlich" style="display:none">
+        <div class="form-row">
+          <div class="form-group"><label class="form-label">Wochentag</label>
+            <select class="form-input" id="sched-wochentag">
+              <option value="1">Montag</option><option value="2">Dienstag</option><option value="3">Mittwoch</option>
+              <option value="4">Donnerstag</option><option value="5">Freitag</option><option value="6">Samstag</option><option value="0">Sonntag</option>
+            </select>
+          </div>
+          <div class="form-group"><label class="form-label">Uhrzeit</label>
+            <input type="time" class="form-input" id="sched-woech-time">
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeScheduleModal()">Abbrechen</button>
+      <button class="btn btn-primary" onclick="saveSchedule()">💾 Speichern</button>
+    </div>
+  </div>
+</div>
+
+<!-- OVERLAY: Chain Live-Monitor -->
+<div class="terminal-overlay" id="chain-monitor-overlay">
+  <div class="terminal-window" style="width:900px;height:620px">
+    <div class="terminal-header">
+      <span style="font-size:16px">🔗</span>
+      <span class="terminal-title" id="chain-monitor-title">Verkettung</span>
+      <span class="terminal-status running" id="chain-monitor-status">● Läuft…</span>
+      <button class="icon-btn" id="chain-monitor-close" onclick="closeChainMonitor()" style="color:var(--muted);-webkit-app-region:no-drag;margin-left:8px" disabled>✕</button>
+    </div>
+    <!-- Schritt-Fortschritt -->
+    <div style="padding:12px 18px;border-bottom:1px solid var(--border);flex-shrink:0;display:flex;align-items:center;gap:12px">
+      <div style="font-size:12px;color:var(--muted)">Fortschritt:</div>
+      <div id="chain-progress-bar" style="flex:1;height:6px;background:var(--border);border-radius:3px;overflow:hidden">
+        <div id="chain-progress-fill" style="height:100%;width:0%;background:linear-gradient(90deg,var(--accent1),var(--accent2));transition:width .4s ease;border-radius:3px"></div>
+      </div>
+      <div id="chain-progress-text" style="font-size:12px;color:var(--muted);font-family:'JetBrains Mono',monospace;white-space:nowrap">0 / 0</div>
+    </div>
+    <!-- Schritte -->
+    <div id="chain-monitor-steps" style="flex:1;overflow-y:auto;padding:14px 18px"></div>
+    <div class="terminal-footer">
+      <button class="btn btn-ghost btn-sm" onclick="copyChainOutput()">📋 Kopieren</button>
+      <button class="btn btn-ghost btn-sm" id="chain-monitor-close2" onclick="closeChainMonitor()" disabled>Schließen</button>
+    </div>
+  </div>
+</div>
+
 <div id="toasts"></div>
 
 <!-- MODAL: Log-Detail / Vollausgabe -->
@@ -563,6 +825,14 @@ async function init() {
   document.getElementById('cfg-dbpath').textContent   = info.dbPath   || '–';
   await loadScripts();
   await scanLib();
+  await loadFavorites();
+  await loadChains();
+  await loadSchedules();
+  // Scheduler-Benachrichtigung
+  window.api.scheduler.onFired(d => {
+    showToast(`🕐 Geplant gestartet: ${d.scheduleName}`, 'info');
+    loadSchedules();
+  });
 }
 
 // ── SCRIPTS LADEN ────────────────────────────────────────────────────────────
@@ -571,6 +841,11 @@ async function loadScripts() {
   updateStats();
   buildCategoryPills();
   renderScripts();
+  // Favoriten-Badge aktualisieren
+  const favCount = scripts.filter(s=>s.favorit).length;
+  document.getElementById('badge-favs').textContent = favCount;
+  document.getElementById('fav-count').textContent  = favCount;
+
   // Scan-Banner Count ebenfalls aktualisieren
   const remaining = newFiles.filter(f => !scripts.some(s => s.dateiname.toLowerCase() === f.toLowerCase()));
   newFiles = remaining;
@@ -636,6 +911,7 @@ function renderScripts() {
       <span style="font-size:12px;color:var(--muted)">${escHtml(s.autor||'–')}</span>
       <span class="row-time">${s.letztes_ausfuehren?s.letztes_ausfuehren.slice(0,16):'–'}</span>
       <div class="row-actions">
+        <button class="fav-btn" title="Favorit" onclick="event.stopPropagation();toggleFav(${s.id})" style="font-size:16px">${s.favorit?'⭐':'☆'}</button>
         <button class="icon-btn run-btn"  title="Ausführen"  onclick="event.stopPropagation();runScript(${s.id})">▶</button>
         <button class="icon-btn code-btn" title="Code bearbeiten" onclick="event.stopPropagation();openEditor('${escHtml(s.dateiname)}')">📝</button>
         <button class="icon-btn edit-btn" title="Bearbeiten" onclick="event.stopPropagation();openEditModal(${s.id})">✏️</button>
@@ -1135,8 +1411,528 @@ async function runGitSync() {
   btn.disabled = false; btn.textContent = '⬇ Scripte aktualisieren';
 }
 
+// ── FAVORITEN ────────────────────────────────────────────────────────────────
+async function loadFavorites() {
+  const favs = await window.api.scripts.getFavorites();
+  const el   = document.getElementById('fav-list');
+  if(!favs.length){ el.innerHTML='<div class="empty-state"><div class="icon">⭐</div><p>Noch keine Favoriten. Klicke den ☆-Button in der Script-Liste.</p></div>'; return; }
+  el.innerHTML = favs.map(s=>`
+    <div class="script-row" onclick="selectScript(${s.id});showPage('scripts')">
+      <span class="row-status ${s.aktiviert?'on':'off'}"></span>
+      <div><div class="row-name">${escHtml(s.name)}</div><div class="row-desc">${escHtml(s.beschreibung||'')}</div></div>
+      <span class="cat-badge">${escHtml(s.kategorie)}</span>
+      <span style="font-size:12px;color:var(--muted)">${escHtml(s.autor||'–')}</span>
+      <span class="row-time">${s.letztes_ausfuehren?s.letztes_ausfuehren.slice(0,16):'–'}</span>
+      <div class="row-actions">
+        <button class="fav-btn" title="Favorit entfernen" onclick="event.stopPropagation();toggleFav(${s.id})" style="font-size:16px">⭐</button>
+        <button class="icon-btn run-btn" title="Ausführen" onclick="event.stopPropagation();runScript(${s.id})">▶</button>
+      </div>
+    </div>`).join('');
+}
+
+async function toggleFav(id) {
+  const r = await window.api.scripts.toggleFav(id);
+  await loadScripts();
+  await loadFavorites();
+  showToast(r.favorit ? '⭐ Als Favorit markiert' : '☆ Favorit entfernt', 'info');
+}
+
+// ── CHAINS ────────────────────────────────────────────────────────────────────
+let chains = [];
+let selectedChainId = null;
+let chainBuilderSteps = [];  // [{script_id, script_name, parameter, pause_sek}]
+let chainMonitorCleanup = [];
+
+async function loadChains() {
+  chains = await window.api.chains.getAll();
+  document.getElementById('badge-chains').textContent = chains.length;
+  renderChains();
+}
+
+function renderChains() {
+  const el = document.getElementById('chain-list');
+  if(!chains.length){ el.innerHTML='<div class="empty-state"><div class="icon">🔗</div><p>Noch keine Verkettungen.</p></div>'; return; }
+  el.innerHTML = chains.map(c=>`
+    <div class="script-row ${selectedChainId===c.id?'selected':''}" onclick="selectChain(${c.id})">
+      <span class="row-status on"></span>
+      <div><div class="row-name">${escHtml(c.name)}</div><div class="row-desc">${escHtml(c.beschreibung||'')}</div></div>
+      <span class="cat-badge">${c.bei_fehler==='stop'?'🛑 Stop':'▶ Weiter'}</span>
+      <span style="font-size:12px;color:var(--muted)"></span>
+      <span class="row-time"></span>
+      <div class="row-actions">
+        <button class="icon-btn run-btn"  title="Ausführen"  onclick="event.stopPropagation();runChainById(${c.id})">▶</button>
+        <button class="icon-btn edit-btn" title="Bearbeiten" onclick="event.stopPropagation();openChainModal(${c.id})">✏️</button>
+        <button class="icon-btn del-btn"  title="Löschen"    onclick="event.stopPropagation();deleteChain(${c.id})">🗑</button>
+      </div>
+    </div>`).join('');
+}
+
+async function selectChain(id) {
+  selectedChainId = id;
+  renderChains();
+  const chain = chains.find(c=>c.id===id);
+  const steps = await window.api.chains.getSteps(id);
+  document.getElementById('chain-detail-title').textContent = `🔗 ${chain.name}`;
+  document.getElementById('chain-detail-actions').style.display = '';
+  document.getElementById('chain-detail-panel').innerHTML = `
+    <div class="detail-body">
+      <div class="detail-field"><div class="detail-label">Beschreibung</div><div class="detail-value" style="color:var(--muted)">${escHtml(chain.beschreibung||'–')}</div></div>
+      <div class="detail-field"><div class="detail-label">Bei Fehler</div><div class="detail-value">${chain.bei_fehler==='stop'?'🛑 Stoppen':'▶ Weiter ausführen'}</div></div>
+      <div class="detail-field"><div class="detail-label">Schritte (${steps.length})</div>
+        <div style="display:flex;flex-direction:column;gap:8px;margin-top:4px">
+          ${steps.length?steps.map((s,i)=>`
+            <div class="chain-step-row">
+              <div class="chain-step-num">${i+1}</div>
+              <div class="chain-step-info">
+                <div>${escHtml(s.script_name)}</div>
+                <div class="chain-step-sub">${escHtml(s.dateiname)}${s.parameter?` · ${escHtml(s.parameter)}`:''} · ${s.warte_typ==='auf_abschluss'?'⏸ Warten auf Abschluss':'⏱ ' + formatPauseSek(s.pause_sek) + ' Pause'}</div>
+              </div>
+            </div>`).join(''):'<div style="color:var(--muted);font-size:13px">Keine Schritte.</div>'}
+        </div>
+      </div>
+    </div>`;
+}
+
+// Chain-Modal
+async function openChainModal(id) {
+  chainBuilderSteps = [];
+  document.getElementById('chain-modal-id').value        = id||'';
+  document.getElementById('chain-modal-title').textContent= id?'Verkettung bearbeiten':'Verkettung erstellen';
+  document.getElementById('chain-modal-name').value      = '';
+  document.getElementById('chain-modal-beschreibung').value='';
+  document.getElementById('chain-modal-fehler').value    = 'stop';
+
+  // Script-Dropdown befüllen
+  document.getElementById('chain-script-select').innerHTML =
+    scripts.map(s=>`<option value="${s.id}">${escHtml(s.name)}</option>`).join('');
+
+  if(id){
+    const c=chains.find(x=>x.id===id);
+    if(c){ document.getElementById('chain-modal-name').value=c.name; document.getElementById('chain-modal-beschreibung').value=c.beschreibung||''; document.getElementById('chain-modal-fehler').value=c.bei_fehler||'stop'; }
+    const steps=await window.api.chains.getSteps(id);
+    chainBuilderSteps=steps.map(s=>({script_id:s.script_id,script_name:s.script_name,dateiname:s.dateiname||'',parameter:s.parameter||'',pause_sek:s.pause_sek||0,warte_typ:s.warte_typ||'auf_abschluss'}));
+  }
+  renderChainBuilder();
+  document.getElementById('modal-chain').classList.add('open');
+}
+
+function closeChainModal() { document.getElementById('modal-chain').classList.remove('open'); }
+
+function addChainStep() {
+  const sel    = document.getElementById('chain-script-select');
+  const id     = parseInt(sel.value);
+  const sname  = sel.options[sel.selectedIndex]?.text || '';
+  const params = document.getElementById('chain-step-params').value.trim();
+  if (!id) { showToast('Bitte ein Script auswaehlen', 'err'); return; }
+  chainBuilderSteps.push({ script_id: id, script_name: sname, parameter: params, pause_sek: 0, warte_typ: 'auf_abschluss' });
+  document.getElementById('chain-step-params').value = '';
+  renderChainBuilder();
+}
+
+function removeChainStep(i) { chainBuilderSteps.splice(i,1); renderChainBuilder(); }
+
+function moveChainStep(i, dir) {
+  const j = i + dir;
+  if (j < 0 || j >= chainBuilderSteps.length) return;
+  [chainBuilderSteps[i], chainBuilderSteps[j]] = [chainBuilderSteps[j], chainBuilderSteps[i]];
+  renderChainBuilder();
+}
+
+function updateChainStepPause(i, val, source) {
+  // source: 'slider' | 'input' (woher kommt der Wert)
+  let sek = parseInt(val) || 0;
+  // Eingabe ist in Minuten wenn source='input', sonst Sekunden
+  if (source === 'input') sek = Math.min(Math.round(parseFloat(val) * 60) || 0, 3600);
+  sek = Math.max(0, Math.min(sek, 3600));
+  chainBuilderSteps[i].pause_sek = sek;
+
+  // Slider synchronisieren
+  const slider = document.getElementById('chain-slider-' + i);
+  if (slider && source !== 'slider') slider.value = sek;
+
+  // Minuten-Eingabe synchronisieren
+  const inp = document.getElementById('chain-min-input-' + i);
+  if (inp && source !== 'input') {
+    const min = sek / 60;
+    inp.value = sek === 0 ? '0' : Number.isInteger(min) ? min : min.toFixed(1);
+  }
+
+  // Track-Farbe: zeigt gefüllten Anteil lila
+  if (slider) {
+    const pct = (sek / 3600) * 100;
+    slider.style.background = `linear-gradient(to right, var(--accent1) ${pct}%, var(--border) ${pct}%)`;
+  }
+
+  // Info-Zeile aktualisieren
+  const info = document.getElementById('chain-pause-info-' + i);
+  if (info) {
+    const wt = chainBuilderSteps[i].warte_typ;
+    info.textContent = wt === 'auf_abschluss'
+      ? '⏸ Nächster Schritt startet wenn dieser fertig ist' + (sek > 0 ? ` + ${formatPauseSek(sek)} Zusatzpause` : '')
+      : sek === 0 ? '▶ Sofort starten (keine Pause)'
+                  : '⏱ ' + formatPauseSek(sek) + ' warten vor diesem Schritt';
+  }
+}
+
+function updateChainStepWarteTyp(i, val) {
+  chainBuilderSteps[i].warte_typ = val;
+  renderChainBuilder();
+}
+
+function updateChainStepParam(i, val) {
+  chainBuilderSteps[i].parameter = val;
+}
+
+function renderChainBuilder() {
+  const el      = document.getElementById('chain-steps-builder');
+  const hint    = document.getElementById('chain-empty-hint');
+  const counter = document.getElementById('chain-step-counter');
+  const n       = chainBuilderSteps.length;
+  if (counter) counter.textContent = n;
+  if (!n) {
+    el.innerHTML = '';
+    if (hint) hint.style.display = '';
+    return;
+  }
+  if (hint) hint.style.display = 'none';
+
+  el.innerHTML = chainBuilderSteps.map((s, i) => {
+    const isFirst = i === 0;
+    const isLast  = i === n - 1;
+    return `
+    <div style="display:flex;align-items:stretch;background:var(--surface);border:1px solid var(--border);border-radius:12px;margin-bottom:10px;overflow:hidden" id="chain-step-${i}">
+
+      <!-- Linke Seite: Schrittnummer + Pfeile -->
+      <div style="display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:4px;padding:12px 10px;background:rgba(124,106,247,.1);border-right:1px solid var(--border);flex-shrink:0;min-width:46px">
+        <div style="width:22px;height:22px;border-radius:50%;background:var(--accent1);color:#fff;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center">${i+1}</div>
+        <button onclick="moveChainStep(${i},-1)" title="Nach oben" ${isFirst?'disabled':''} style="background:transparent;border:none;cursor:${isFirst?'default':'pointer'};color:${isFirst?'rgba(100,116,139,.3)':'var(--muted)'};font-size:12px;padding:2px 4px;border-radius:4px;line-height:1">&#x25B2;</button>
+        <button onclick="moveChainStep(${i},1)"  title="Nach unten" ${isLast?'disabled':''} style="background:transparent;border:none;cursor:${isLast?'default':'pointer'};color:${isLast?'rgba(100,116,139,.3)':'var(--muted)'};font-size:12px;padding:2px 4px;border-radius:4px;line-height:1">&#x25BC;</button>
+      </div>
+
+      <!-- Body -->
+      <div style="flex:1;padding:12px 14px;display:flex;flex-direction:column;gap:10px;min-width:0">
+        <!-- Script-Name -->
+        <div>
+          <span style="font-size:10px;color:var(--accent1);font-family:'JetBrains Mono',monospace;margin-right:6px;font-weight:600">SCHRITT ${i+1}</span>
+          <span style="font-weight:700;font-size:13px">${escHtml(s.script_name)}</span>
+        </div>
+
+        <!-- Parameter -->
+        <div>
+          <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Parameter</div>
+          <input style="width:100%;background:var(--card);border:1px solid var(--border);border-radius:7px;padding:5px 10px;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:11px;outline:none"
+                 value="${escHtml(s.parameter)}"
+                 placeholder="z.B. -Verbose (optional)"
+                 oninput="updateChainStepParam(${i}, this.value)"
+                 spellcheck="false">
+        </div>
+
+        <!-- Warte-Typ Toggle + optionaler Pause-Slider -->
+        <div style="display:flex;flex-direction:column;gap:8px">
+
+          <!-- Toggle: Auf Abschluss / Timer -->
+          <div style="display:flex;gap:6px">
+            <button onclick="updateChainStepWarteTyp(${i},'auf_abschluss')"
+                    style="flex:1;padding:6px 10px;border-radius:8px;border:1px solid ${s.warte_typ==='auf_abschluss'?'var(--accent1)':'var(--border)'};background:${s.warte_typ==='auf_abschluss'?'rgba(124,106,247,.2)':'var(--card)'};color:${s.warte_typ==='auf_abschluss'?'var(--accent1)':'var(--muted)'};cursor:pointer;font-family:'Syne',sans-serif;font-size:11px;font-weight:700;transition:all .2s">
+              ⏸ Auf Abschluss warten
+            </button>
+            <button onclick="updateChainStepWarteTyp(${i},'timer')"
+                    style="flex:1;padding:6px 10px;border-radius:8px;border:1px solid ${s.warte_typ==='timer'?'var(--accent1)':'var(--border)'};background:${s.warte_typ==='timer'?'rgba(124,106,247,.2)':'var(--card)'};color:${s.warte_typ==='timer'?'var(--accent1)':'var(--muted)'};cursor:pointer;font-family:'Syne',sans-serif;font-size:11px;font-weight:700;transition:all .2s">
+              ⏱ Feste Pause
+            </button>
+          </div>
+
+          <!-- Pause: Slider + Minuten-Eingabe -->
+          <div>
+            <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">
+              ${s.warte_typ==='auf_abschluss'?'Zusätzliche Pause danach':'Pause vor Schritt'}
+            </div>
+            <div style="display:flex;align-items:center;gap:10px">
+              <!-- Slider 0–3600s -->
+              <input type="range" id="chain-slider-${i}" min="0" max="3600" step="30" value="${s.pause_sek}"
+                     oninput="updateChainStepPause(${i}, this.value, 'slider')"
+                     style="-webkit-appearance:none;flex:1;height:6px;border-radius:3px;outline:none;cursor:pointer;background:linear-gradient(to right, var(--accent1) ${(s.pause_sek/3600*100).toFixed(1)}%, var(--border) ${(s.pause_sek/3600*100).toFixed(1)}%)">
+              <!-- Minuten-Eingabe -->
+              <div style="display:flex;align-items:center;gap:4px;flex-shrink:0">
+                <input type="number" id="chain-min-input-${i}"
+                       min="0" max="60" step="0.5"
+                       value="${s.pause_sek===0?'0':Number.isInteger(s.pause_sek/60)?(s.pause_sek/60).toString():(s.pause_sek/60).toFixed(1)}"
+                       oninput="updateChainStepPause(${i}, this.value, 'input')"
+                       style="width:58px;background:var(--card);border:1px solid var(--border);border-radius:7px;padding:4px 8px;color:var(--accent1);font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;text-align:right;outline:none;-moz-appearance:textfield"
+                       title="Minuten eingeben (max. 60 min)">
+                <span style="font-size:11px;color:var(--muted)">min</span>
+              </div>
+            </div>
+            <div style="font-size:10px;color:var(--muted);margin-top:5px;padding:0 2px" id="chain-pause-info-${i}">
+              ${s.warte_typ==='auf_abschluss'
+                ? '⏸ Nächster Schritt startet wenn dieser fertig ist' + (s.pause_sek>0?` + ${formatPauseSek(s.pause_sek)} Zusatzpause`:'')
+                : s.pause_sek===0 ? '▶ Sofort starten (keine Pause)' : '⏱ ' + formatPauseSek(s.pause_sek) + ' warten vor diesem Schritt'}
+            </div>
+            <div style="font-size:10px;color:rgba(100,116,139,.5);margin-top:2px;padding:0 2px">max. 60 min</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Rechts: Loeschen -->
+      <div style="padding:12px 10px;display:flex;align-items:flex-start">
+        <button onclick="removeChainStep(${i})" title="Schritt entfernen"
+                style="width:28px;height:28px;border-radius:7px;border:none;cursor:pointer;background:transparent;color:var(--muted);font-size:14px;display:flex;align-items:center;justify-content:center;transition:all .2s"
+                onmouseenter="this.style.background='rgba(248,113,113,.2)';this.style.color='var(--red)'"
+                onmouseleave="this.style.background='transparent';this.style.color='var(--muted)'">&#x1F5D1;</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ===== OLD renderChainBuilder placeholder removed =====
+function _old_renderChainBuilder_removed() {}
+
+async function saveChain() {
+  const id   = document.getElementById('chain-modal-id').value;
+  const name = document.getElementById('chain-modal-name').value.trim();
+  if(!name){ showToast('Name ist Pflichtfeld','err'); return; }
+  const data = { name, beschreibung:document.getElementById('chain-modal-beschreibung').value.trim(), bei_fehler:document.getElementById('chain-modal-fehler').value };
+  let chainId;
+  if(id){
+    await window.api.chains.update({...data,id:parseInt(id)});
+    chainId=parseInt(id);
+  } else {
+    const r=await window.api.chains.add(data);
+    chainId=r.id;
+  }
+  await window.api.chains.saveSteps(chainId, chainBuilderSteps);
+  showToast(id?'✔ Verkettung aktualisiert':'✔ Verkettung erstellt','ok');
+  closeChainModal();
+  await loadChains();
+  if(chainId) selectChain(chainId);
+}
+
+async function deleteChain(id) {
+  if(!confirm('Verkettung wirklich löschen?')) return;
+  await window.api.chains.delete(id);
+  showToast('🗑 Verkettung gelöscht','ok');
+  if(selectedChainId===id){ selectedChainId=null; document.getElementById('chain-detail-panel').innerHTML='<div class="detail-empty"><div style="font-size:32px;opacity:.3">👆</div><div>Verkettung auswählen</div></div>'; document.getElementById('chain-detail-actions').style.display='none'; }
+  await loadChains();
+}
+
+function runSelectedChain() { if(selectedChainId) runChainById(selectedChainId); }
+function editSelectedChain() { if(selectedChainId) openChainModal(selectedChainId); }
+
+// Chain ausführen mit Live-Monitor
+async function runChainById(chainId) {
+  const chain = chains.find(c=>c.id===chainId);
+  if(!chain) return;
+  const steps = await window.api.chains.getSteps(chainId);
+  if(!steps.length){ showToast('Chain hat keine Schritte','err'); return; }
+
+  // Monitor öffnen
+  openChainMonitor(chain.name, steps);
+
+  // IPC-Listener
+  const offStart    = window.api.chain.onStart(d    => { updateChainProgress(0,d.total); });
+  const offStepStart= window.api.chain.onStepStart(d=> { setChainStepStatus(d.index,'running'); updateChainProgress(d.index,d.total); });
+  const offData     = window.api.chain.onData(d     => { appendChainStepOutput(d.index, d.line, d.type); });
+  const offStepEnd  = window.api.chain.onStepEnd(d  => { setChainStepStatus(d.index, d.success?'ok':'err'); updateChainProgress(d.index+1, steps.length); });
+  const offEnd      = window.api.chain.onEnd(d      => {
+    chainMonitorDone(d.success);
+    loadScripts();
+    chainMonitorCleanup.forEach(fn=>fn());
+    chainMonitorCleanup=[];
+    showToast(d.success?`✔ Chain "${chain.name}" fertig`:`✘ Chain "${chain.name}" mit Fehler`,'ok');
+  });
+  chainMonitorCleanup=[offStart,offStepStart,offData,offStepEnd,offEnd];
+
+  window.api.chains.run(chainId);
+}
+
+function openChainMonitor(name, steps) {
+  document.getElementById('chain-monitor-title').textContent = `🔗 ${name}`;
+  document.getElementById('chain-monitor-status').textContent='● Läuft…';
+  document.getElementById('chain-monitor-status').className='terminal-status running';
+  document.getElementById('chain-monitor-close').disabled=true;
+  document.getElementById('chain-monitor-close2').disabled=true;
+  document.getElementById('chain-progress-fill').style.width='0%';
+  document.getElementById('chain-progress-text').textContent=`0 / ${steps.length}`;
+
+  // Schritte rendern
+  document.getElementById('chain-monitor-steps').innerHTML = steps.map((s,i)=>`
+    <div class="monitor-step" id="monitor-step-${i}">
+      <div class="monitor-step-icon waiting" id="monitor-icon-${i}">◯</div>
+      <div class="monitor-step-body">
+        <div class="monitor-step-name">${escHtml(s.script_name)}</div>
+        <div class="monitor-step-output" id="monitor-out-${i}"></div>
+      </div>
+      <button class="icon-btn" onclick="toggleMonitorOutput(${i})" title="Ausgabe ein/ausblenden" style="color:var(--muted);flex-shrink:0">⊞</button>
+    </div>`).join('');
+
+  document.getElementById('chain-monitor-overlay').classList.add('open');
+}
+
+function toggleMonitorOutput(i) {
+  document.getElementById('monitor-out-'+i)?.classList.toggle('visible');
+}
+
+function setChainStepStatus(i, status) {
+  const icon=document.getElementById('monitor-icon-'+i);
+  if(!icon) return;
+  const map={waiting:['◯','waiting'],running:['▶','running'],ok:['✔','ok'],err:['✘','err'],skip:['–','skip']};
+  const [txt,cls]=map[status]||['◯','waiting'];
+  icon.textContent=txt; icon.className='monitor-step-icon '+cls;
+}
+
+function appendChainStepOutput(i, line, type) {
+  const el=document.getElementById('monitor-out-'+i);
+  if(!el||!line) return;
+  const d=document.createElement('div');
+  d.className=type==='stderr'?'t-stderr':'';
+  d.textContent=line;
+  el.appendChild(d);
+  el.scrollTop=el.scrollHeight;
+  el.classList.add('visible');
+}
+
+function updateChainProgress(done, total) {
+  const pct=total>0?Math.round((done/total)*100):0;
+  document.getElementById('chain-progress-fill').style.width=pct+'%';
+  document.getElementById('chain-progress-text').textContent=`${done} / ${total}`;
+}
+
+function chainMonitorDone(success) {
+  const s=document.getElementById('chain-monitor-status');
+  s.textContent=success?'✔ Fertig':'✘ Fehler';
+  s.className='terminal-status '+(success?'ok':'err');
+  document.getElementById('chain-monitor-close').disabled=false;
+  document.getElementById('chain-monitor-close2').disabled=false;
+}
+
+function closeChainMonitor() {
+  document.getElementById('chain-monitor-overlay').classList.remove('open');
+  chainMonitorCleanup.forEach(fn=>fn());
+  chainMonitorCleanup=[];
+}
+
+function copyChainOutput() {
+  const lines=[...document.querySelectorAll('.monitor-step-output div')].map(d=>d.textContent).join('\n');
+  navigator.clipboard.writeText(lines).then(()=>showToast('📋 Kopiert','ok'));
+}
+
+// ── SCHEDULER ────────────────────────────────────────────────────────────────
+async function loadSchedules() {
+  const schedules=await window.api.schedules.getAll();
+  const el=document.getElementById('schedule-list');
+  if(!schedules.length){ el.innerHTML='<div class="empty-state"><div class="icon">🕐</div><p>Noch keine geplanten Ausführungen.</p></div>'; return; }
+  el.innerHTML=schedules.map(s=>`
+    <div class="schedule-row">
+      <div>
+        <div style="font-weight:700;font-size:13px">${escHtml(s.name)}</div>
+        <div style="font-size:11px;color:var(--muted)">${s.target_typ==='chain'?'🔗':'📜'} ${escHtml(getTargetName(s.target_id,s.target_typ))}</div>
+      </div>
+      <span class="sched-badge ${s.typ}">${s.typ}</span>
+      <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted)">${formatSchedTime(s)}</span>
+      <span style="font-size:11px;color:var(--muted)">${s.letzter_lauf?s.letzter_lauf.slice(0,16):'–'}</span>
+      <div style="display:flex;gap:6px">
+        <button class="icon-btn edit-btn" onclick="openScheduleModal(${s.id})" title="Bearbeiten">✏️</button>
+        <button class="icon-btn del-btn"  onclick="deleteSchedule(${s.id})" title="Löschen">🗑</button>
+      </div>
+    </div>`).join('');
+}
+
+function getTargetName(id,typ) {
+  if(typ==='chain'){ const c=chains.find(x=>x.id===id); return c?c.name:'–'; }
+  const s=scripts.find(x=>x.id===id); return s?s.name:'–';
+}
+
+function formatSchedTime(s) {
+  if(s.typ==='einmalig') return s.einmalig_am?s.einmalig_am.slice(0,16):'–';
+  if(s.typ==='taeglich') return s.cron||'–';
+  if(s.typ==='woechentlich'){ const [day,time]=(s.cron||'').split(' '); const days=['So','Mo','Di','Mi','Do','Fr','Sa']; return `${days[parseInt(day)]||'?'} ${time||''}`; }
+  return '–';
+}
+
+async function openScheduleModal(id) {
+  document.getElementById('sched-modal-id').value='';
+  document.getElementById('sched-name').value='';
+  document.getElementById('sched-typ').value='einmalig';
+  document.getElementById('sched-target-typ').value='script';
+  updateSchedTargetList();
+  updateSchedForm();
+
+  if(id){
+    const s=await window.api.schedules.getById(id);
+    if(s){
+      document.getElementById('sched-modal-id').value=s.id;
+      document.getElementById('sched-name').value=s.name;
+      document.getElementById('sched-typ').value=s.typ;
+      document.getElementById('sched-target-typ').value=s.target_typ||'script';
+      updateSchedTargetList();
+      document.getElementById('sched-target-id').value=s.target_id;
+      updateSchedForm();
+      if(s.typ==='einmalig') document.getElementById('sched-einmalig-am').value=s.einmalig_am||'';
+      if(s.typ==='taeglich') document.getElementById('sched-taeglich-time').value=s.cron||'';
+      if(s.typ==='woechentlich'){ const [d,t]=(s.cron||'').split(' '); document.getElementById('sched-wochentag').value=d||'1'; document.getElementById('sched-woech-time').value=t||''; }
+    }
+    document.getElementById('schedule-modal-title').textContent='Zeitplan bearbeiten';
+  } else {
+    document.getElementById('schedule-modal-title').textContent='Ausführung planen';
+  }
+  document.getElementById('modal-schedule').classList.add('open');
+}
+
+function closeScheduleModal() { document.getElementById('modal-schedule').classList.remove('open'); }
+
+function updateSchedTargetList() {
+  const typ=document.getElementById('sched-target-typ').value;
+  const sel=document.getElementById('sched-target-id');
+  if(typ==='chain'){ sel.innerHTML=chains.map(c=>`<option value="${c.id}">${escHtml(c.name)}</option>`).join(''); }
+  else { sel.innerHTML=scripts.map(s=>`<option value="${s.id}">${escHtml(s.name)}</option>`).join(''); }
+}
+
+function updateSchedForm() {
+  const typ=document.getElementById('sched-typ').value;
+  document.getElementById('sched-field-einmalig').style.display    =typ==='einmalig'?'':'none';
+  document.getElementById('sched-field-taeglich').style.display    =typ==='taeglich'?'':'none';
+  document.getElementById('sched-field-woechentlich').style.display=typ==='woechentlich'?'':'none';
+}
+
+async function saveSchedule() {
+  const id   =document.getElementById('sched-modal-id').value;
+  const name =document.getElementById('sched-name').value.trim();
+  const typ  =document.getElementById('sched-typ').value;
+  const targetId  =parseInt(document.getElementById('sched-target-id').value);
+  const targetTyp =document.getElementById('sched-target-typ').value;
+  if(!name||!targetId){ showToast('Name und Ziel sind Pflichtfelder','err'); return; }
+
+  let cron=null, einmaligAm=null, naechster=null;
+  if(typ==='einmalig'){ einmaligAm=document.getElementById('sched-einmalig-am').value; naechster=einmaligAm; }
+  if(typ==='taeglich'){ cron=document.getElementById('sched-taeglich-time').value; }
+  if(typ==='woechentlich'){ const d=document.getElementById('sched-wochentag').value; const t=document.getElementById('sched-woech-time').value; cron=`${d} ${t}`; }
+
+  const data={name,typ,target_id:targetId,target_typ:targetTyp,cron,einmalig_am:einmaligAm,naechster_lauf:naechster};
+  if(id){ await window.api.schedules.update({...data,id:parseInt(id),aktiv:1}); }
+  else   { await window.api.schedules.add(data); }
+  showToast(id?'✔ Zeitplan aktualisiert':'✔ Zeitplan erstellt','ok');
+  closeScheduleModal();
+  await loadSchedules();
+}
+
+async function deleteSchedule(id) {
+  if(!confirm('Zeitplan löschen?')) return;
+  await window.api.schedules.delete(id);
+  showToast('🗑 Zeitplan gelöscht','ok');
+  await loadSchedules();
+}
+
 // ── NAVIGATION ───────────────────────────────────────────────────────────────
-const pageTitles={scripts:'Scripts <span>// Bibliothek</span>',logs:'Logs <span>// Ausführungsprotokoll</span>',update:'Updates <span>// Releases</span>',settings:'Einstellungen <span>// Konfiguration</span>',about:'Info <span>// PS Script Manager v2</span>'};
+const pageTitles={
+  scripts:  'Scripts <span>// Bibliothek</span>',
+  favorites:'Favoriten <span>// Schnellzugriff</span>',
+  chains:   'Verkettungen <span>// Script-Pipelines</span>',
+  scheduler:'Scheduler <span>// Geplante Ausführungen</span>',
+  logs:     'Logs <span>// Ausführungsprotokoll</span>',
+  update:   'Updates <span>// Releases</span>',
+  settings: 'Einstellungen <span>// Konfiguration</span>',
+  about:    'Info <span>// PS Script Manager v2</span>',
+};
 const topbarIds={scripts:['search-wrap','btn-add','btn-import-ps1','btn-import-csv','btn-open-lib']};
 function showPage(name){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
@@ -1145,7 +1941,10 @@ function showPage(name){
   document.getElementById('page-title').innerHTML=pageTitles[name]||name;
   const show=topbarIds[name]||[];
   ['search-wrap','btn-add','btn-import-ps1','btn-import-csv','btn-open-lib'].forEach(id=>{const el=document.getElementById(id);if(el)el.style.display=show.includes(id)?'':'none';});
-  if(name==='logs') loadLogs();
+  if(name==='logs')      loadLogs();
+  if(name==='favorites') loadFavorites();
+  if(name==='chains')    loadChains();
+  if(name==='scheduler') loadSchedules();
   if(name==='update') {
     window.api.app.info().then(i => {
       document.getElementById('upd-current').textContent = i.version || '–';
@@ -1154,6 +1953,15 @@ function showPage(name){
 }
 
 // ── UTILS ────────────────────────────────────────────────────────────────────
+function formatPauseSek(sek) {
+  sek = parseInt(sek) || 0;
+  if (sek === 0)    return '0s';
+  if (sek < 60)     return sek + 's';
+  const m = Math.floor(sek / 60);
+  const s = sek % 60;
+  return s > 0 ? `${m}min ${s}s` : `${m}min`;
+}
+
 function showToast(msg,type='info'){const c=document.getElementById('toasts');const t=document.createElement('div');t.className=`toast ${type}`;t.innerHTML=`<span>${type==='ok'?'✔':type==='err'?'✘':'ℹ'}</span><span>${msg}</span>`;c.appendChild(t);setTimeout(()=>t.remove(),3500);}
 function escHtml(str){if(!str)return'';return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 function now(){return new Date().toLocaleTimeString('de-DE');}
@@ -1176,8 +1984,9 @@ document.addEventListener('DOMContentLoaded',()=>{
 
 document.addEventListener('keydown', e=>{
   if(e.key==='Escape'){
-    closeModal(); closeScanModal();
+    closeModal(); closeScanModal(); closeChainModal(); closeScheduleModal();
     if(!document.getElementById('term-close-btn').disabled) closeTerminal();
+    if(!document.getElementById('chain-monitor-close').disabled) closeChainMonitor();
     closeEditor();
   }
 });

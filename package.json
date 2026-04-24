@@ -1,6 +1,6 @@
 {
   "name": "ps-script-manager",
-  "version": "2.0.5",
+  "version": "2.0.6",
   "description": "PS Script Manager - PowerShell Script Verwaltung",
   "main": "main.js",
   "author": "Tobias Scherer",

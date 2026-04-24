@@ -1,7 +1,6 @@
 /**
- * preload.js – Sichere Brücke Renderer ↔ Main
- * Neu: terminal.sendInput / terminal.kill für Interactive Shell
- *      scripts.readCode / scripts.writeCode für Editor
+ * preload.js – v2.1
+ * Neu: favorites, chains, schedules, chain live-events
  */
 const { contextBridge, ipcRenderer } = require('electron');
 
@@ -14,14 +13,35 @@ contextBridge.exposeInMainWorld('api', {
   },
 
   scripts: {
-    getAll:    ()               => ipcRenderer.invoke('scripts:getAll'),
-    getById:   (id)             => ipcRenderer.invoke('scripts:getById', id),
-    add:       (s)              => ipcRenderer.invoke('scripts:add', s),
-    update:    (s)              => ipcRenderer.invoke('scripts:update', s),
-    delete:    (id)             => ipcRenderer.invoke('scripts:delete', id),
-    readCode:  (filename)       => ipcRenderer.invoke('scripts:readCode', filename),
-    writeCode: (filename, code) => ipcRenderer.invoke('scripts:writeCode', filename, code),
-    run:       (id, params)     => ipcRenderer.invoke('scripts:run', id, params),
+    getAll:       ()           => ipcRenderer.invoke('scripts:getAll'),
+    getFavorites: ()           => ipcRenderer.invoke('scripts:getFavorites'),
+    getById:      (id)         => ipcRenderer.invoke('scripts:getById', id),
+    add:          (s)          => ipcRenderer.invoke('scripts:add', s),
+    update:       (s)          => ipcRenderer.invoke('scripts:update', s),
+    delete:       (id)         => ipcRenderer.invoke('scripts:delete', id),
+    toggleFav:    (id)         => ipcRenderer.invoke('scripts:toggleFav', id),
+    readCode:     (fn)         => ipcRenderer.invoke('scripts:readCode', fn),
+    writeCode:    (fn, code)   => ipcRenderer.invoke('scripts:writeCode', fn, code),
+    run:          (id, params) => ipcRenderer.invoke('scripts:run', id, params),
+  },
+
+  chains: {
+    getAll:    ()            => ipcRenderer.invoke('chains:getAll'),
+    getById:   (id)          => ipcRenderer.invoke('chains:getById', id),
+    getSteps:  (id)          => ipcRenderer.invoke('chains:getSteps', id),
+    add:       (c)           => ipcRenderer.invoke('chains:add', c),
+    update:    (c)           => ipcRenderer.invoke('chains:update', c),
+    delete:    (id)          => ipcRenderer.invoke('chains:delete', id),
+    saveSteps: (id, steps)   => ipcRenderer.invoke('chains:saveSteps', id, steps),
+    run:       (id)          => ipcRenderer.invoke('chains:run', id),
+  },
+
+  schedules: {
+    getAll:  ()    => ipcRenderer.invoke('schedules:getAll'),
+    getById: (id)  => ipcRenderer.invoke('schedules:getById', id),
+    add:     (s)   => ipcRenderer.invoke('schedules:add', s),
+    update:  (s)   => ipcRenderer.invoke('schedules:update', s),
+    delete:  (id)  => ipcRenderer.invoke('schedules:delete', id),
   },
 
   logs: {
@@ -35,11 +55,11 @@ contextBridge.exposeInMainWorld('api', {
   },
 
   lib: {
-    listFiles:  ()  => ipcRenderer.invoke('lib:listFiles'),
-    scanNew:    ()  => ipcRenderer.invoke('lib:scanNew'),
-    openFolder: ()  => ipcRenderer.invoke('lib:openFolder'),
-    importFile: ()  => ipcRenderer.invoke('lib:importFile'),
-    openCsv:    ()  => ipcRenderer.invoke('lib:openCsv'),
+    listFiles:  () => ipcRenderer.invoke('lib:listFiles'),
+    scanNew:    () => ipcRenderer.invoke('lib:scanNew'),
+    openFolder: () => ipcRenderer.invoke('lib:openFolder'),
+    importFile: () => ipcRenderer.invoke('lib:importFile'),
+    openCsv:    () => ipcRenderer.invoke('lib:openCsv'),
   },
 
   update: {
@@ -48,22 +68,39 @@ contextBridge.exposeInMainWorld('api', {
   },
 
   git: {
-    status: ()                       => ipcRenderer.invoke('git:status'),
-    sync:   (repoUrl, branch)        => ipcRenderer.invoke('git:sync', repoUrl, branch),
+    status: ()               => ipcRenderer.invoke('git:status'),
+    sync:   (url, branch)    => ipcRenderer.invoke('git:sync', url, branch),
   },
 
-  app: {
-    info: () => ipcRenderer.invoke('app:info'),
+  app: { info: () => ipcRenderer.invoke('app:info') },
+
+  tray: {
+    // App in Tray minimieren (Fenster ausblenden, Prozess läuft weiter)
+    minimize: () => ipcRenderer.send('win:close'),
+    // App wirklich beenden
+    quit:     () => ipcRenderer.send('app:quit'),
   },
 
-  // ── Terminal-Events: Main → Renderer ─────────────────────────────────
+  // ── Terminal Events (einzelnes Script) ──────────────────────────────
   terminal: {
-    onStart:    (cb) => { const h = (_e,d) => cb(d); ipcRenderer.on('terminal:start', h); return () => ipcRenderer.removeListener('terminal:start', h); },
-    onData:     (cb) => { const h = (_e,d) => cb(d); ipcRenderer.on('terminal:data',  h); return () => ipcRenderer.removeListener('terminal:data',  h); },
-    onEnd:      (cb) => { const h = (_e,d) => cb(d); ipcRenderer.on('terminal:end',   h); return () => ipcRenderer.removeListener('terminal:end',   h); },
-    // Renderer → Main: Eingabe in stdin schreiben
-    sendInput:  (text) => ipcRenderer.send('terminal:input', text),
-    // Prozess abbrechen
-    kill:       ()     => ipcRenderer.send('terminal:kill'),
+    onStart:   (cb) => { const h=(_e,d)=>cb(d); ipcRenderer.on('terminal:start',h); return ()=>ipcRenderer.removeListener('terminal:start',h); },
+    onData:    (cb) => { const h=(_e,d)=>cb(d); ipcRenderer.on('terminal:data',h);  return ()=>ipcRenderer.removeListener('terminal:data',h);  },
+    onEnd:     (cb) => { const h=(_e,d)=>cb(d); ipcRenderer.on('terminal:end',h);   return ()=>ipcRenderer.removeListener('terminal:end',h);   },
+    sendInput: (t)  => ipcRenderer.send('terminal:input', t),
+    kill:      ()   => ipcRenderer.send('terminal:kill'),
+  },
+
+  // ── Chain Events (Live-Output der Verkettung) ────────────────────────
+  chain: {
+    onStart:     (cb) => { const h=(_e,d)=>cb(d); ipcRenderer.on('chain:start',    h); return ()=>ipcRenderer.removeListener('chain:start',    h); },
+    onStepStart: (cb) => { const h=(_e,d)=>cb(d); ipcRenderer.on('chain:stepStart',h); return ()=>ipcRenderer.removeListener('chain:stepStart',h); },
+    onData:      (cb) => { const h=(_e,d)=>cb(d); ipcRenderer.on('chain:data',     h); return ()=>ipcRenderer.removeListener('chain:data',     h); },
+    onStepEnd:   (cb) => { const h=(_e,d)=>cb(d); ipcRenderer.on('chain:stepEnd',  h); return ()=>ipcRenderer.removeListener('chain:stepEnd',  h); },
+    onEnd:       (cb) => { const h=(_e,d)=>cb(d); ipcRenderer.on('chain:end',      h); return ()=>ipcRenderer.removeListener('chain:end',      h); },
+  },
+
+  // ── Scheduler Events ─────────────────────────────────────────────────
+  scheduler: {
+    onFired: (cb) => { const h=(_e,d)=>cb(d); ipcRenderer.on('scheduler:fired',h); return ()=>ipcRenderer.removeListener('scheduler:fired',h); },
   },
 });
