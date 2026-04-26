@@ -72,7 +72,11 @@ contextBridge.exposeInMainWorld('api', {
     sync:   (url, branch)    => ipcRenderer.invoke('git:sync', url, branch),
   },
 
-  app: { info: () => ipcRenderer.invoke('app:info') },
+  app:      { info: () => ipcRenderer.invoke('app:info') },
+  settings: {
+    set: (key, value) => ipcRenderer.invoke('settings:set', key, value),
+    get: (key)        => ipcRenderer.invoke('settings:get', key),
+  },
 
   tray: {
     // App in Tray minimieren (Fenster ausblenden, Prozess läuft weiter)
