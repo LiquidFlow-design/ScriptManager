@@ -133,6 +133,34 @@ $Config = @{
 
     # RSS (Receive Side Scaling) auf dedizierten CPU-Kern binden (weniger NDIS-DPC-Latenz)
     RSSAffinitaet              = $true
+
+    # ---- Neue Ergaenzungen ----
+    # CPU-Parking deaktivieren (alle Kerne immer aktiv - verhindert Reaktionsverzoegerung)
+    CPUParking                 = $true
+
+    # TCP Fast Open aktivieren (schnellerer Verbindungsaufbau zum Spielserver)
+    TCPFastOpen                = $true
+
+    # UDP-Puffer optimieren (besonders relevant fuer CoD - laeuft ueber UDP)
+    UDPPuffer                  = $true
+
+    # Windows Defender Spiele-Ausnahmen hinzufuegen (reduziert CPU-Last beim Spielen)
+    DefenderAusnahmen          = $true
+
+    # Memory Compression deaktivieren (nur bei 16GB+ RAM empfohlen)
+    MemoryCompression          = $true
+
+    # Prefetch vollstaendig deaktivieren (ergaenzt SysMain-Deaktivierung)
+    PrefetchDeaktivieren       = $true
+
+    # Zusaetzliche unnoetige Dienste deaktivieren (Mixed Reality, Tablet, etc.)
+    ZusatzDienste              = $true
+
+    # NVIDIA Shader-Cache-Groesse erhoehen (10 GB - weniger Neu-Kompilierungen)
+    NvidiaShaderCache          = $true
+
+    # Prozessor-Boost-Modus erzwingen (permanenter Boost statt bei Bedarf)
+    CPUBoostModus              = $true
 }
 
 # ============================================================
@@ -1195,6 +1223,290 @@ function Set-RSSAffinity {
 }
 
 # ============================================================
+#  CPU-PARKING DEAKTIVIEREN
+# ============================================================
+function Disable-CPUParking {
+    Write-Header "Schritt 27/36 - CPU-Parking deaktivieren (alle Kerne immer aktiv)"
+
+    if (-not $Config.CPUParking) { Write-Skip "Uebersprungen (Konfiguration)"; return }
+
+    try {
+        # Minimale Prozessorkern-Auslastung auf 100% setzen (kein Parking)
+        powercfg -setacvalueindex SCHEME_CURRENT SUB_PROCESSOR CPMINCORES 100 2>$null
+        powercfg -setdcvalueindex SCHEME_CURRENT SUB_PROCESSOR CPMINCORES 100 2>$null
+
+        # Prozessor-Boost-Modus: 2 = Aggressiver Boost
+        if ($Config.CPUBoostModus) {
+            powercfg -setacvalueindex SCHEME_CURRENT SUB_PROCESSOR PERFBOOSTMODE 2 2>$null
+            powercfg -setdcvalueindex SCHEME_CURRENT SUB_PROCESSOR PERFBOOSTMODE 2 2>$null
+            Write-OK "Prozessor-Boost-Modus auf 'Aggressiv' gesetzt."
+        }
+
+        # Energieplan neu laden damit Aenderungen sofort wirken
+        powercfg -setactive SCHEME_CURRENT 2>$null
+
+        # Registry-Absicherung fuer CPU-Parking
+        $parkPath = "HKLM:\SYSTEM\CurrentControlSet\Control\Power\PowerSettings\54533251-82be-4824-96c1-47b60b740d00\0cc5b647-c1df-4637-891a-dec35c318583"
+        if (Test-Path $parkPath) {
+            Set-ItemProperty -Path $parkPath -Name "ValueMax" -Value 0 -Type DWord -ErrorAction SilentlyContinue
+        }
+
+        Write-OK "CPU-Parking deaktiviert (alle Kerne permanent aktiv)."
+        Write-Info "Verhindert kurze CPU-Stotterer wenn das Spiel einen geparkten Kern benoetigt."
+    }
+    catch {
+        Write-Warn "CPU-Parking konnte nicht deaktiviert werden: $_"
+    }
+}
+
+# ============================================================
+#  TCP FAST OPEN AKTIVIEREN
+# ============================================================
+function Enable-TCPFastOpen {
+    Write-Header "Schritt 28/36 - TCP Fast Open aktivieren"
+
+    if (-not $Config.TCPFastOpen) { Write-Skip "Uebersprungen (Konfiguration)"; return }
+
+    try {
+        & netsh int tcp set global fastopen=enabled          2>&1 | Out-Null
+        & netsh int tcp set global fastopenfallback=enabled  2>&1 | Out-Null
+
+        # Zusaetzlich: Syn-Retries reduzieren fuer schnelleres Verbindungs-Timeout
+        $tcpPath = "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters"
+        Set-ItemProperty -Path $tcpPath -Name "TcpMaxConnectRetransmissions" -Value 2 -Type DWord -ErrorAction SilentlyContinue
+        Set-ItemProperty -Path $tcpPath -Name "TcpMaxDataRetransmissions"    -Value 3 -Type DWord -ErrorAction SilentlyContinue
+
+        Write-OK "TCP Fast Open aktiviert (schnellerer Verbindungsaufbau zum Spielserver)."
+        Write-Info "Besonders wirksam bei wiederholten Verbindungen zum selben Server."
+    }
+    catch {
+        Write-Warn "TCP Fast Open konnte nicht aktiviert werden: $_"
+    }
+}
+
+# ============================================================
+#  UDP-PUFFER OPTIMIEREN
+# ============================================================
+function Set-UDPBufferOptimization {
+    Write-Header "Schritt 29/36 - UDP-Puffer optimieren (CoD-spezifisch)"
+
+    if (-not $Config.UDPPuffer) { Write-Skip "Uebersprungen (Konfiguration)"; return }
+
+    try {
+        $afdPath = "HKLM:\SYSTEM\CurrentControlSet\Services\AFD\Parameters"
+        if (-not (Test-Path $afdPath)) { New-Item -Path $afdPath -Force | Out-Null }
+
+        # Receive/Send Window auf 64KB erhoehen (Standard ist oft zu klein fuer CoD)
+        Set-ItemProperty -Path $afdPath -Name "DefaultReceiveWindow"         -Value 65536  -Type DWord
+        Set-ItemProperty -Path $afdPath -Name "DefaultSendWindow"            -Value 65536  -Type DWord
+
+        # Maximale UDP-Puffergroesse erhoehen
+        Set-ItemProperty -Path $afdPath -Name "MaxActiveTransmitFileCount"   -Value 4      -Type DWord -ErrorAction SilentlyContinue
+
+        # Winsock-Puffer systemweit
+        $tcpPath = "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters"
+        Set-ItemProperty -Path $tcpPath -Name "GlobalMaxTcpWindowSize"       -Value 65535  -Type DWord -ErrorAction SilentlyContinue
+        Set-ItemProperty -Path $tcpPath -Name "TcpWindowSize"                -Value 65535  -Type DWord -ErrorAction SilentlyContinue
+
+        Write-OK "UDP/AFD-Puffer auf 64KB optimiert (weniger Paketverlust unter Last)."
+        Write-Info "Direkt relevant fuer CoD Black Ops 7 da das Spiel hauptsaechlich UDP nutzt."
+    }
+    catch {
+        Write-Warn "UDP-Puffer konnten nicht optimiert werden: $_"
+    }
+}
+
+# ============================================================
+#  WINDOWS DEFENDER SPIELE-AUSNAHMEN
+# ============================================================
+function Set-DefenderGameExclusions {
+    Write-Header "Schritt 30/36 - Windows Defender: Spiele-Ausnahmen hinzufuegen"
+
+    if (-not $Config.DefenderAusnahmen) { Write-Skip "Uebersprungen (Konfiguration)"; return }
+
+    try {
+        # Bekannte Spiele- und Launcher-Verzeichnisse
+        $gamePaths = @(
+            "$env:ProgramFiles\Call of Duty",
+            "$env:ProgramFiles (x86)\Call of Duty",
+            "$env:ProgramFiles\Steam\steamapps\common",
+            "$env:ProgramFiles (x86)\Steam\steamapps\common",
+            "$env:ProgramFiles\Battle.net",
+            "$env:ProgramFiles (x86)\Battle.net",
+            "$env:ProgramFiles\Epic Games",
+            "$env:ProgramFiles (x86)\Epic Games",
+            "C:\Games"
+        )
+
+        $added = 0
+        foreach ($path in $gamePaths) {
+            if (Test-Path $path) {
+                Add-MpPreference -ExclusionPath $path -ErrorAction SilentlyContinue
+                Write-OK "Defender-Ausnahme: $path"
+                $added++
+            } else {
+                Write-Skip "Nicht gefunden (uebersprungen): $path"
+            }
+        }
+
+        # Bekannte Spiel-Prozesse als Ausnahme
+        $gameProcesses = @("cod.exe","BlackOpsColdWar.exe","HQ.exe","HQGame.exe","steam.exe","EpicGamesLauncher.exe","Battle.net.exe")
+        foreach ($proc in $gameProcesses) {
+            Add-MpPreference -ExclusionProcess $proc -ErrorAction SilentlyContinue
+        }
+
+        # Echtzeit-Scan-Prioritaet senken statt deaktivieren
+        Set-MpPreference -ScanAvgCPULoadFactor 5    -ErrorAction SilentlyContinue
+        Set-MpPreference -EnableLowCpuPriority $true -ErrorAction SilentlyContinue
+
+        Write-OK "Defender-Ausnahmen fuer $added Verzeichnisse gesetzt."
+        Write-OK "Echtzeit-Scan-CPU-Last auf max. 5% begrenzt."
+        Write-Info "Sicherheitshinweis: Nur vertrauenswuerdige Verzeichnisse sind ausgenommen."
+    }
+    catch {
+        Write-Warn "Defender-Ausnahmen konnten nicht gesetzt werden: $_"
+    }
+}
+
+# ============================================================
+#  MEMORY COMPRESSION DEAKTIVIEREN
+# ============================================================
+function Disable-MemoryCompression {
+    Write-Header "Schritt 31/36 - Memory Compression deaktivieren"
+
+    if (-not $Config.MemoryCompression) { Write-Skip "Uebersprungen (Konfiguration)"; return }
+
+    try {
+        # RAM pruefen - nur bei 16GB+ sinnvoll
+        $ram = (Get-WmiObject -Class Win32_ComputerSystem).TotalPhysicalMemory
+        $ramGB = [math]::Round($ram / 1GB)
+
+        if ($ramGB -lt 16) {
+            Write-Warn "Nur ${ramGB}GB RAM erkannt - Memory Compression wird nicht deaktiviert (mind. 16GB empfohlen)."
+            Write-Info "Mit weniger als 16GB RAM ist Compression oft hilfreich statt schaedlich."
+            return
+        }
+
+        $compressionStatus = (Get-MMAgent -ErrorAction SilentlyContinue).MemoryCompression
+        if ($compressionStatus -eq $false) {
+            Write-Skip "Memory Compression ist bereits deaktiviert."
+            return
+        }
+
+        Disable-MMAgent -MemoryCompression -ErrorAction Stop
+        Write-OK "Memory Compression deaktiviert (${ramGB}GB RAM erkannt)."
+        Write-Info "Verhindert CPU-Belastung durch Hintergrund-Komprimierung waehrend des Spielens."
+    }
+    catch {
+        Write-Warn "Memory Compression konnte nicht deaktiviert werden: $_"
+    }
+}
+
+# ============================================================
+#  PREFETCH VOLLSTAENDIG DEAKTIVIEREN
+# ============================================================
+function Disable-Prefetch {
+    Write-Header "Schritt 32/36 - Prefetch vollstaendig deaktivieren"
+
+    if (-not $Config.PrefetchDeaktivieren) { Write-Skip "Uebersprungen (Konfiguration)"; return }
+
+    try {
+        $path = "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management\PrefetchParameters"
+        if (-not (Test-Path $path)) { New-Item -Path $path -Force | Out-Null }
+
+        Set-ItemProperty -Path $path -Name "EnablePrefetcher"  -Value 0 -Type DWord
+        Set-ItemProperty -Path $path -Name "EnableSuperfetch"  -Value 0 -Type DWord
+
+        Write-OK "Prefetch & Superfetch vollstaendig deaktiviert."
+        Write-Info "Ergaenzt die SysMain-Deaktivierung - verhindert restliche Vorlade-Aktivitaet."
+    }
+    catch {
+        Write-Warn "Prefetch konnte nicht deaktiviert werden: $_"
+    }
+}
+
+# ============================================================
+#  ZUSAETZLICHE DIENSTE DEAKTIVIEREN
+# ============================================================
+function Disable-AdditionalServices {
+    Write-Header "Schritt 33/36 - Zusaetzliche unnoetige Dienste deaktivieren"
+
+    if (-not $Config.ZusatzDienste) { Write-Skip "Uebersprungen (Konfiguration)"; return }
+
+    $services = @(
+        @{ Name = "TabletInputService";        Label = "Tablet PC-Eingabedienst";              Grund = "Stift/Touch-Eingabe (irrelevant beim Gaming-PC)" }
+        @{ Name = "WMPNetworkSvc";             Label = "Windows Media Player Netzwerkfreigabe"; Grund = "Medienfreigabe im Netzwerk (unnoetig)" }
+        @{ Name = "icssvc";                    Label = "Windows Mobile Hotspot";               Grund = "Mobile Hotspot Funktion (unnoetig)" }
+        @{ Name = "wisvc";                     Label = "Windows Insider Service";              Grund = "Windows Insider Programm" }
+        @{ Name = "spectrum";                  Label = "Windows Perception Service";           Grund = "Mixed Reality / Hololens (irrelevant)" }
+        @{ Name = "perceptionsimulation";      Label = "Windows Perception Simulation";        Grund = "Mixed Reality Simulation (irrelevant)" }
+        @{ Name = "PhoneSvc";                  Label = "Telefondienst";                        Grund = "VOIP-Grundfunktionen (unnoetig beim Gaming)" }
+        @{ Name = "PcaSvc";                    Label = "Programmkompatibilitaets-Assistent";   Grund = "Kompatibilitaetspruefung alter Programme" }
+        @{ Name = "WbioSrvc";                  Label = "Windows-Biometrie";                    Grund = "Fingerabdruck/Gesichtserkennung (falls nicht genutzt)" }
+        @{ Name = "SessionEnv";                Label = "Remotedesktop-Konfiguration";          Grund = "Remotedesktop (falls nicht genutzt)" }
+        @{ Name = "TermService";               Label = "Remotedesktopdienste";                 Grund = "Remotedesktop (falls nicht genutzt)" }
+    )
+
+    foreach ($svc in $services) {
+        try {
+            $s = Get-Service -Name $svc.Name -ErrorAction SilentlyContinue
+            if ($null -eq $s) { Write-Skip "$($svc.Label) - nicht vorhanden"; continue }
+            if ($s.StartType -eq "Disabled") { Write-Skip "$($svc.Label) - bereits deaktiviert"; continue }
+            Stop-Service -Name $svc.Name -Force -ErrorAction SilentlyContinue
+            Set-Service  -Name $svc.Name -StartupType Disabled -ErrorAction Stop
+            Write-OK "$($svc.Label) deaktiviert  ($($svc.Grund))"
+        }
+        catch {
+            Write-Warn "$($svc.Label) konnte nicht deaktiviert werden: $_"
+        }
+    }
+}
+
+# ============================================================
+#  NVIDIA SHADER-CACHE ERHOEHEN
+# ============================================================
+function Set-NvidiaShaderCache {
+    Write-Header "Schritt 34/36 - NVIDIA Shader-Cache-Groesse auf 10 GB erhoehen"
+
+    if (-not $Config.NvidiaShaderCache) { Write-Skip "Uebersprungen (Konfiguration)"; return }
+
+    try {
+        # Pruefen ob NVIDIA-Adapter vorhanden
+        $nvPath = "HKLM:\SYSTEM\CurrentControlSet\Control\Class\{4d36e968-e325-11ce-bfc1-08002be10318}"
+        $nvAdapters = Get-ChildItem -Path $nvPath -ErrorAction SilentlyContinue |
+                      Where-Object { $_.Name -match "\\\d{4}$" }
+
+        $nvFound = $false
+        foreach ($adapter in $nvAdapters) {
+            $driverDesc = (Get-ItemProperty -Path $adapter.PSPath -Name "DriverDesc" -ErrorAction SilentlyContinue).DriverDesc
+            if ($driverDesc -match "NVIDIA") { $nvFound = $true; break }
+        }
+
+        if (-not $nvFound) {
+            Write-Skip "Kein NVIDIA-Adapter gefunden - Shader-Cache-Erhoehung uebersprungen."
+            return
+        }
+
+        # Cache-Groesse pro Benutzer setzen (10 GB = 10240 MB)
+        $nvTweakPath = "HKCU:\Software\NVIDIA Corporation\Global\NVTweak"
+        if (-not (Test-Path $nvTweakPath)) { New-Item -Path $nvTweakPath -Force | Out-Null }
+        Set-ItemProperty -Path $nvTweakPath -Name "ShaderDiskCacheMaxSize" -Value 10240 -Type DWord
+
+        # Auch per DirectX UserGPU Preferences absichern
+        $dxPath = "HKLM:\SOFTWARE\Microsoft\DirectX\UserGpuPreferences"
+        if (-not (Test-Path $dxPath)) { New-Item -Path $dxPath -Force | Out-Null }
+        Set-ItemProperty -Path $dxPath -Name "DirectXUserGlobalSettings" -Value "ShaderCacheSizeInMB=10240;" -Type String -ErrorAction SilentlyContinue
+
+        Write-OK "NVIDIA Shader-Cache auf 10 GB gesetzt."
+        Write-Info "Wirkt sich nicht auf RTX/DLSS/Reflex aus - nur die Cache-Groesse auf der SSD wird erhoeht."
+        Write-Info "Benoetigt ausreichend freien Speicherplatz auf dem Windows-Laufwerk."
+    }
+    catch {
+        Write-Warn "NVIDIA Shader-Cache konnte nicht gesetzt werden: $_"
+    }
+}
+
+# ============================================================
 #  UNDO-FUNKTION: ALLE AENDERUNGEN RUECKGAENGIG MACHEN
 # ============================================================
 function Invoke-UndoOptimizations {
@@ -1212,6 +1524,13 @@ function Invoke-UndoOptimizations {
     Write-Host "   - Nagle-Algorithmus reaktivieren" -ForegroundColor Gray
     Write-Host "   - QoS-Bandbreite wiederherstellen" -ForegroundColor Gray
     Write-Host "   - Visuelle Effekte auf Standard" -ForegroundColor Gray
+    Write-Host "   - CPU-Parking reaktivieren" -ForegroundColor Gray
+    Write-Host "   - TCP Fast Open deaktivieren" -ForegroundColor Gray
+    Write-Host "   - UDP-Puffer auf Standard zuruecksetzen" -ForegroundColor Gray
+    Write-Host "   - Defender-Ausnahmen entfernen" -ForegroundColor Gray
+    Write-Host "   - Memory Compression reaktivieren" -ForegroundColor Gray
+    Write-Host "   - Prefetch reaktivieren" -ForegroundColor Gray
+    Write-Host "   - NVIDIA Shader-Cache-Groesse zuruecksetzen" -ForegroundColor Gray
     Write-Host ""
     Write-Host "  Dienste und Energieplan: Bitte manuell oder per" -ForegroundColor Yellow
     Write-Host "  Systemwiederherstellung zuruecksetzen." -ForegroundColor Yellow
@@ -1300,7 +1619,89 @@ function Invoke-UndoOptimizations {
         & netsh int tcp set global chimney=default        2>&1 | Out-Null
         & netsh int tcp set global ecncapability=default  2>&1 | Out-Null
         & netsh int tcp set global timestamps=default     2>&1 | Out-Null
-        Write-OK "TCP-Einstellungen auf Standard zurueckgesetzt."
+        & netsh int tcp set global fastopen=disabled      2>&1 | Out-Null
+        & netsh int tcp set global fastopenfallback=disabled 2>&1 | Out-Null
+        Write-OK "TCP-Einstellungen auf Standard zurueckgesetzt (inkl. Fast Open)."
+    } catch {}
+
+    # TCP SynRetries zurueck
+    try {
+        $tcpPath = "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters"
+        Remove-ItemProperty -Path $tcpPath -Name "TcpMaxConnectRetransmissions" -ErrorAction SilentlyContinue
+        Remove-ItemProperty -Path $tcpPath -Name "TcpMaxDataRetransmissions"    -ErrorAction SilentlyContinue
+        Write-OK "TCP-Retransmission-Werte auf Standard zurueckgesetzt."
+    } catch {}
+
+    # UDP-Puffer zurueck
+    try {
+        $afdPath = "HKLM:\SYSTEM\CurrentControlSet\Services\AFD\Parameters"
+        Remove-ItemProperty -Path $afdPath -Name "DefaultReceiveWindow"       -ErrorAction SilentlyContinue
+        Remove-ItemProperty -Path $afdPath -Name "DefaultSendWindow"          -ErrorAction SilentlyContinue
+        Remove-ItemProperty -Path $afdPath -Name "MaxActiveTransmitFileCount" -ErrorAction SilentlyContinue
+        $tcpPath = "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters"
+        Remove-ItemProperty -Path $tcpPath -Name "GlobalMaxTcpWindowSize"     -ErrorAction SilentlyContinue
+        Remove-ItemProperty -Path $tcpPath -Name "TcpWindowSize"              -ErrorAction SilentlyContinue
+        Write-OK "UDP/AFD-Puffer auf Standard zurueckgesetzt."
+    } catch {}
+
+    # CPU-Parking reaktivieren
+    try {
+        powercfg -setacvalueindex SCHEME_CURRENT SUB_PROCESSOR CPMINCORES 5  2>$null
+        powercfg -setdcvalueindex SCHEME_CURRENT SUB_PROCESSOR CPMINCORES 5  2>$null
+        powercfg -setacvalueindex SCHEME_CURRENT SUB_PROCESSOR PERFBOOSTMODE 1 2>$null
+        powercfg -setdcvalueindex SCHEME_CURRENT SUB_PROCESSOR PERFBOOSTMODE 1 2>$null
+        powercfg -setactive SCHEME_CURRENT 2>$null
+        $parkPath = "HKLM:\SYSTEM\CurrentControlSet\Control\Power\PowerSettings\54533251-82be-4824-96c1-47b60b740d00\0cc5b647-c1df-4637-891a-dec35c318583"
+        if (Test-Path $parkPath) {
+            Set-ItemProperty -Path $parkPath -Name "ValueMax" -Value 100 -Type DWord -ErrorAction SilentlyContinue
+        }
+        Write-OK "CPU-Parking reaktiviert (Windows-Standard wiederhergestellt)."
+    } catch {}
+
+    # Defender-Ausnahmen entfernen
+    try {
+        $gamePaths = @(
+            "$env:ProgramFiles\Call of Duty",
+            "$env:ProgramFiles (x86)\Call of Duty",
+            "$env:ProgramFiles\Steam\steamapps\common",
+            "$env:ProgramFiles (x86)\Steam\steamapps\common",
+            "$env:ProgramFiles\Battle.net",
+            "$env:ProgramFiles (x86)\Battle.net",
+            "$env:ProgramFiles\Epic Games",
+            "$env:ProgramFiles (x86)\Epic Games",
+            "C:\Games"
+        )
+        foreach ($path in $gamePaths) {
+            Remove-MpPreference -ExclusionPath $path -ErrorAction SilentlyContinue
+        }
+        $gameProcesses = @("cod.exe","BlackOpsColdWar.exe","HQ.exe","HQGame.exe","steam.exe","EpicGamesLauncher.exe","Battle.net.exe")
+        foreach ($proc in $gameProcesses) {
+            Remove-MpPreference -ExclusionProcess $proc -ErrorAction SilentlyContinue
+        }
+        Set-MpPreference -ScanAvgCPULoadFactor 50    -ErrorAction SilentlyContinue
+        Set-MpPreference -EnableLowCpuPriority $false -ErrorAction SilentlyContinue
+        Write-OK "Defender-Ausnahmen entfernt und CPU-Scan-Last auf Standard zurueckgesetzt."
+    } catch {}
+
+    # Memory Compression reaktivieren
+    try {
+        Enable-MMAgent -MemoryCompression -ErrorAction SilentlyContinue
+        Write-OK "Memory Compression reaktiviert."
+    } catch {}
+
+    # Prefetch reaktivieren
+    try {
+        $pfPath = "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management\PrefetchParameters"
+        Set-ItemProperty -Path $pfPath -Name "EnablePrefetcher"  -Value 3 -Type DWord -ErrorAction SilentlyContinue
+        Set-ItemProperty -Path $pfPath -Name "EnableSuperfetch"  -Value 3 -Type DWord -ErrorAction SilentlyContinue
+        Write-OK "Prefetch & Superfetch reaktiviert (Windows-Standard: 3)."
+    } catch {}
+
+    # NVIDIA Shader-Cache zuruecksetzen
+    try {
+        $nvTweakPath = "HKCU:\Software\NVIDIA Corporation\Global\NVTweak"
+        Remove-ItemProperty -Path $nvTweakPath -Name "ShaderDiskCacheMaxSize" -ErrorAction SilentlyContinue
+        Write-OK "NVIDIA Shader-Cache-Groesse auf Standard zurueckgesetzt."
     } catch {}
 
     # LSO reaktivieren
@@ -1384,6 +1785,15 @@ function Show-Summary {
     Write-Host "   - IPv6 deaktiviert" -ForegroundColor Gray
     Write-Host "   - Delivery Optimization (Windows Update P2P) deaktiviert" -ForegroundColor Gray
     Write-Host "   - RSS-Affinitaet auf dedizierten CPU-Kern gebunden" -ForegroundColor Gray
+    Write-Host "   - CPU-Parking deaktiviert (alle Kerne permanent aktiv)" -ForegroundColor Gray
+    Write-Host "   - Prozessor-Boost-Modus auf 'Aggressiv' gesetzt" -ForegroundColor Gray
+    Write-Host "   - TCP Fast Open aktiviert" -ForegroundColor Gray
+    Write-Host "   - UDP-Puffer fuer CoD optimiert (64KB)" -ForegroundColor Gray
+    Write-Host "   - Windows Defender Spiele-Ausnahmen gesetzt" -ForegroundColor Gray
+    Write-Host "   - Memory Compression deaktiviert (bei 16GB+ RAM)" -ForegroundColor Gray
+    Write-Host "   - Prefetch vollstaendig deaktiviert" -ForegroundColor Gray
+    Write-Host "   - Zusaetzliche Dienste deaktiviert (Mixed Reality, Tablet, etc.)" -ForegroundColor Gray
+    Write-Host "   - NVIDIA Shader-Cache auf 10 GB erhoehen" -ForegroundColor Gray
     Write-Host ""
     Write-Host "  NEUSTART EMPFOHLEN damit alle Aenderungen wirksam werden." -ForegroundColor Yellow
     Write-Host ""
@@ -1459,4 +1869,12 @@ Set-NICOptimizations
 Disable-IPv6
 Disable-DeliveryOptimization
 Set-RSSAffinity
+Disable-CPUParking
+Enable-TCPFastOpen
+Set-UDPBufferOptimization
+Set-DefenderGameExclusions
+Disable-MemoryCompression
+Disable-Prefetch
+Disable-AdditionalServices
+Set-NvidiaShaderCache
 Show-Summary
