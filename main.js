@@ -473,5 +473,9 @@ ipcMain.handle('git:status', async () => {
 ipcMain.handle('update:check', async()=>{ try{ const r=await autoUpdater.checkForUpdates(); if(!r?.updateInfo) return{available:false}; const c=app.getVersion(),l=r.updateInfo.version; return{available:l!==c,currentVersion:c,latestVersion:l,releaseNotes:r.updateInfo.releaseNotes||''}; }catch(e){return{available:false,error:e.message};} });
 ipcMain.handle('update:download',async()=>{ try{ autoUpdater.once('update-downloaded',()=>autoUpdater.quitAndInstall()); await autoUpdater.downloadUpdate(); return{success:true}; }catch(e){return{success:false,error:e.message};} });
 
+// ── Settings IPC ─────────────────────────────────────────────────────────
+ipcMain.handle('settings:set', (_e, key, value) => dbReady().setSetting(key, value));
+ipcMain.handle('settings:get', (_e, key)        => ({ value: dbReady().getSetting(key) }));
+
 // ── App-Info ──────────────────────────────────────────────────────────────
 ipcMain.handle('app:info',()=>({ version:app.getVersion(), dataPath:APP_DATA, libPath:LIB_DIR, builtinLib:BUILTIN_LIB, dbPath:DB_PATH, platform:process.platform }));
