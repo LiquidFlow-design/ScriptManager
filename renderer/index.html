@@ -271,12 +271,178 @@ input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-
 .sched-badge.einmalig{background:rgba(56,189,248,.15);color:var(--accent3);}
 .sched-badge.taeglich{background:rgba(52,211,153,.15);color:var(--green);}
 .sched-badge.woechentlich{background:rgba(192,132,252,.15);color:var(--accent2);}
+
+/* ── AUTH OVERLAY ─────────────────────────────────────────────────────── */
+.auth-overlay{position:fixed;inset:0;background:var(--bg);z-index:9000;display:flex;align-items:center;justify-content:center;-webkit-app-region:drag;}
+.auth-overlay.hidden{display:none;}
+.auth-card{background:var(--card);border:1px solid var(--border);border-radius:20px;width:420px;max-width:92vw;box-shadow:0 32px 80px rgba(0,0,0,.7);-webkit-app-region:no-drag;overflow:hidden;}
+.auth-header{padding:32px 32px 24px;text-align:center;background:linear-gradient(135deg,rgba(124,106,247,.12),rgba(192,132,252,.08));border-bottom:1px solid var(--border);}
+.auth-logo{width:56px;height:56px;border-radius:16px;background:linear-gradient(135deg,var(--accent1),var(--accent2));display:flex;align-items:center;justify-content:center;font-size:28px;margin:0 auto 16px;}
+.auth-title{font-size:20px;font-weight:800;margin-bottom:4px;}
+.auth-sub{font-size:12px;color:var(--muted);}
+.auth-body{padding:28px 32px;display:flex;flex-direction:column;gap:16px;}
+.auth-footer{padding:20px 32px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:10px;}
+.auth-error{background:rgba(248,113,113,.12);border:1px solid rgba(248,113,113,.3);border-radius:9px;padding:10px 14px;font-size:13px;color:var(--red);display:none;}
+.auth-error.visible{display:block;}
+.auth-info{background:rgba(56,189,248,.08);border:1px solid rgba(56,189,248,.2);border-radius:9px;padding:10px 14px;font-size:12px;color:var(--accent3);}
+.totp-code-input{font-family:'JetBrains Mono',monospace;font-size:24px;font-weight:700;letter-spacing:8px;text-align:center;background:var(--surface);border:2px solid var(--border);border-radius:12px;padding:14px;color:var(--text);outline:none;transition:border-color .2s;}
+.totp-code-input:focus{border-color:var(--accent1);}
+.qr-box{text-align:center;padding:16px;background:white;border-radius:12px;display:inline-block;}
+.qr-box img{width:180px;height:180px;}
+.role-badge{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;}
+.role-badge.admin{background:rgba(248,113,113,.15);color:var(--red);}
+.role-badge.user{background:rgba(124,106,247,.15);color:var(--accent1);}
+.role-badge.readonly{background:rgba(100,116,139,.15);color:var(--muted);}
+
+/* ── USER TABLE ───────────────────────────────────────────────────────── */
+.user-table{width:100%;border-collapse:collapse;font-size:13px;}
+.user-table th{text-align:left;padding:9px 14px;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;border-bottom:1px solid var(--border);}
+.user-table td{padding:11px 14px;border-bottom:1px solid rgba(37,37,64,.4);}
+.user-table tr:hover td{background:rgba(124,106,247,.04);}
+
+/* ── PERM GRID ────────────────────────────────────────────────────────── */
+.perm-row{display:grid;grid-template-columns:1fr 90px 90px 90px 80px;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid rgba(37,37,64,.4);font-size:13px;}
+.perm-row:hover{background:rgba(124,106,247,.04);}
+.perm-toggle{width:44px;height:22px;border-radius:11px;border:none;cursor:pointer;position:relative;transition:background .2s;flex-shrink:0;}
+.perm-toggle.on{background:var(--green);}
+.perm-toggle.off{background:var(--border);}
+
+/* ── AUDIT TABLE ──────────────────────────────────────────────────────── */
+.audit-table{width:100%;border-collapse:collapse;font-size:12px;}
+.audit-table th{text-align:left;padding:8px 12px;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;border-bottom:1px solid var(--border);}
+.audit-table td{padding:8px 12px;border-bottom:1px solid rgba(37,37,64,.3);font-family:'JetBrains Mono',monospace;}
+.audit-table tr:hover td{background:rgba(124,106,247,.04);}
+.audit-aktion{padding:2px 8px;border-radius:6px;font-size:11px;font-weight:700;background:rgba(124,106,247,.12);color:var(--accent1);}
+.admin-tab.active{background:rgba(124,106,247,.18);color:var(--accent1);border-color:var(--accent1);}
+
+/* ── SIDEBAR USER INFO ────────────────────────────────────────────────── */
+.sidebar-user{padding:12px 20px;border-top:1px solid var(--border);display:flex;align-items:center;gap:10px;cursor:pointer;transition:background .2s;}
+.sidebar-user:hover{background:rgba(124,106,247,.08);}
+.sidebar-user-avatar{width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,var(--accent1),var(--accent2));display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;flex-shrink:0;}
+.sidebar-user-name{font-size:12px;font-weight:700;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.sidebar-user-role{font-size:10px;color:var(--muted);}
 </style>
 
 <!-- Custom CSS: wird als LETZTES geladen → überschreibt alle App-Styles -->
 <style id="custom-css-style"></style>
 </head>
 <body>
+<!-- TITLEBAR -->
+<!-- ══════════════════════════════════════════════════════════════════════
+     AUTH OVERLAYS  (z-index:9000 — über allem anderen)
+     ═══════════════════════════════════════════════════════════════════ -->
+
+<!-- ERSTEINRICHTUNG -->
+<div class="auth-overlay" id="auth-setup">
+  <div class="auth-card">
+    <div class="auth-header">
+      <div class="auth-logo">⚡</div>
+      <div class="auth-title">Willkommen</div>
+      <div class="auth-sub">Ersteinrichtung — Admin-Konto anlegen</div>
+    </div>
+    <div class="auth-body">
+      <div class="auth-info">Dies ist das erste Admin-Konto. Es kann später weitere Nutzer anlegen und Berechtigungen vergeben.</div>
+      <div class="auth-error" id="setup-error"></div>
+      <div class="form-group"><label class="form-label">Benutzername *</label><input type="text" class="form-input" id="setup-username" placeholder="admin" autocomplete="off"></div>
+      <div class="form-group"><label class="form-label">Passwort *</label><input type="password" class="form-input" id="setup-password" placeholder="Mindestens 8 Zeichen"></div>
+      <div class="form-group"><label class="form-label">Passwort wiederholen *</label><input type="password" class="form-input" id="setup-password2" placeholder="Passwort bestätigen"></div>
+    </div>
+    <div class="auth-footer">
+      <button class="btn btn-primary" onclick="doSetup()" id="setup-btn">🚀 Admin-Konto erstellen</button>
+    </div>
+  </div>
+</div>
+
+<!-- LOGIN -->
+<div class="auth-overlay hidden" id="auth-login">
+  <div class="auth-card">
+    <div class="auth-header">
+      <div class="auth-logo">⚡</div>
+      <div class="auth-title">PS Script Manager</div>
+      <div class="auth-sub">Bitte anmelden</div>
+    </div>
+    <div class="auth-body">
+      <div class="auth-error" id="login-error"></div>
+      <div class="form-group"><label class="form-label">Benutzername</label><input type="text" class="form-input" id="login-username" placeholder="Benutzername" autocomplete="username"></div>
+      <div class="form-group"><label class="form-label">Passwort</label><input type="password" class="form-input" id="login-password" placeholder="Passwort" autocomplete="current-password"></div>
+    </div>
+    <div class="auth-footer">
+      <button class="btn btn-primary" onclick="doLogin()" id="login-btn">🔐 Anmelden</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOTP (2FA) -->
+<div class="auth-overlay hidden" id="auth-totp">
+  <div class="auth-card">
+    <div class="auth-header">
+      <div class="auth-logo">🔐</div>
+      <div class="auth-title">Zwei-Faktor-Authentifizierung</div>
+      <div class="auth-sub" id="totp-login-user">Code aus Authenticator-App eingeben</div>
+    </div>
+    <div class="auth-body">
+      <div class="auth-error" id="totp-error"></div>
+      <div class="auth-info">Öffne deine Authenticator-App (z.B. Google Authenticator oder Authy) und gib den 6-stelligen Code ein.</div>
+      <input type="text" class="totp-code-input" id="totp-code" placeholder="000000" maxlength="6" inputmode="numeric" pattern="[0-9]*" autocomplete="one-time-code">
+    </div>
+    <div class="auth-footer">
+      <button class="btn btn-primary" onclick="doTotp()" id="totp-btn">✔ Bestätigen</button>
+      <button class="btn btn-ghost btn-sm" onclick="backToLogin()" style="text-align:center">← Zurück zum Login</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOTP SETUP ERZWUNGEN (totp_erzwungen=1 in Einstellungen) -->
+<div class="auth-overlay hidden" id="auth-force-totp">
+  <div class="auth-card">
+    <div class="auth-header">
+      <div class="auth-logo">🔐</div>
+      <div class="auth-title">2FA Einrichtung erforderlich</div>
+      <div class="auth-sub">Der Administrator hat Zwei-Faktor-Authentifizierung für alle Benutzer erzwungen</div>
+    </div>
+    <div class="auth-body">
+      <div class="auth-info">Scanne den QR-Code mit deiner Authenticator-App (z.B. Google Authenticator, Authy) und gib den generierten Code zur Bestätigung ein.</div>
+      <div style="display:flex;justify-content:center;margin:4px 0">
+        <div class="qr-box" id="force-totp-qr"><div style="color:#555;font-size:12px;padding:20px">QR wird generiert…</div></div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Secret-Key (falls QR nicht funktioniert)</label>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:12px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px;word-break:break-all;color:var(--accent3)" id="force-totp-secret">–</div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Bestätigungscode *</label>
+        <input type="text" class="totp-code-input" id="force-totp-code" placeholder="000000" maxlength="6" inputmode="numeric">
+      </div>
+      <div class="auth-error" id="force-totp-error"></div>
+    </div>
+    <div class="auth-footer">
+      <button class="btn btn-primary" onclick="doForceTotpConfirm()" id="force-totp-btn">✔ 2FA aktivieren &amp; fortfahren</button>
+      <div style="font-size:11px;color:var(--muted);text-align:center">Du kannst die App erst nutzen, nachdem 2FA eingerichtet wurde.</div>
+    </div>
+  </div>
+</div>
+
+<!-- PASSWORT ÄNDERN (erzwungen bei muss_pw_aendern=1) -->
+<div class="auth-overlay hidden" id="auth-changepw">
+  <div class="auth-card">
+    <div class="auth-header">
+      <div class="auth-logo">🔑</div>
+      <div class="auth-title">Passwort ändern</div>
+      <div class="auth-sub">Bitte ein neues Passwort festlegen</div>
+    </div>
+    <div class="auth-body">
+      <div class="auth-info">Dein Passwort wurde zurückgesetzt. Bitte lege ein neues Passwort fest um fortzufahren.</div>
+      <div class="auth-error" id="changepw-error"></div>
+      <div class="form-group"><label class="form-label">Aktuelles Passwort</label><input type="password" class="form-input" id="changepw-old" placeholder="Aktuelles Passwort"></div>
+      <div class="form-group"><label class="form-label">Neues Passwort</label><input type="password" class="form-input" id="changepw-new" placeholder="Neues Passwort"></div>
+      <div class="form-group"><label class="form-label">Wiederholen</label><input type="password" class="form-input" id="changepw-new2" placeholder="Passwort bestätigen"></div>
+    </div>
+    <div class="auth-footer">
+      <button class="btn btn-primary" onclick="doChangePw()">💾 Passwort speichern</button>
+    </div>
+  </div>
+</div>
+
 <!-- TITLEBAR -->
 <div class="titlebar">
   <span class="titlebar-title">⚡ PS Script Manager v<span id="app-version">2.0.0</span></span>
@@ -305,8 +471,17 @@ input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-
       <div class="nav-section">System</div>
       <div class="nav-item" onclick="showPage('update')"><span class="icon">🔄</span> Updates<span class="nav-badge" id="badge-updates" style="display:none;background:var(--yellow);color:#000">!</span></div>
       <div class="nav-item" onclick="showPage('settings')"><span class="icon">⚙️</span> Einstellungen</div>
+      <div class="nav-item" id="nav-admin" style="display:none" onclick="showPage('admin')"><span class="icon">🛡️</span> Administration</div>
       <div class="nav-item" onclick="showPage('about')"><span class="icon">ℹ️</span> Info</div>
     </nav>
+    <div class="sidebar-user" onclick="showPage('profile')" id="sidebar-user-info" title="Profil & 2FA">
+      <div class="sidebar-user-avatar" id="sidebar-avatar">?</div>
+      <div style="flex:1;min-width:0">
+        <div class="sidebar-user-name" id="sidebar-username">–</div>
+        <div class="sidebar-user-role" id="sidebar-userrole">–</div>
+      </div>
+      <button class="icon-btn" onclick="event.stopPropagation();doLogout()" title="Abmelden" style="color:var(--muted);font-size:14px">⏻</button>
+    </div>
     <div class="sidebar-footer">
       <div><span class="status-dot"></span>DB: SQLite aktiv</div>
       <div style="margin-top:4px;font-size:10px;color:rgba(100,116,139,.6)">✕ = In Tray minimieren</div>
@@ -903,6 +1078,171 @@ input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-
         </div>
       </div>
 
+      <!-- PAGE: PROFIL (eigene 2FA, PW-Änderung) -->
+      <div class="page" id="page-profile">
+        <div style="max-width:560px;display:flex;flex-direction:column;gap:20px">
+
+          <!-- Konto-Info -->
+          <div class="settings-section">
+            <div class="settings-section-title">👤 Mein Konto</div>
+            <div style="display:flex;align-items:center;gap:16px">
+              <div style="width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,var(--accent1),var(--accent2));display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:800" id="profile-avatar">?</div>
+              <div>
+                <div style="font-size:18px;font-weight:800" id="profile-username">–</div>
+                <div id="profile-role-badge" style="margin-top:4px"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Passwort ändern -->
+          <div class="settings-section">
+            <div class="settings-section-title">🔑 Passwort ändern</div>
+            <div class="form-group"><label class="form-label">Aktuelles Passwort</label><input type="password" class="form-input" id="pw-old" placeholder="Aktuelles Passwort"></div>
+            <div class="form-group"><label class="form-label">Neues Passwort</label><input type="password" class="form-input" id="pw-new" placeholder="Neues Passwort"></div>
+            <div class="form-group"><label class="form-label">Wiederholen</label><input type="password" class="form-input" id="pw-new2" placeholder="Passwort bestätigen"></div>
+            <div class="auth-error" id="pw-change-error" style="display:none"></div>
+            <button class="btn btn-primary btn-sm" style="align-self:flex-start" onclick="changeMyPassword()">💾 Passwort speichern</button>
+          </div>
+
+          <!-- 2FA TOTP -->
+          <div class="settings-section">
+            <div class="settings-section-title">🔐 Zwei-Faktor-Authentifizierung (TOTP)</div>
+            <div id="totp-status-info" style="font-size:13px;color:var(--muted);margin-bottom:8px"></div>
+
+            <!-- TOTP Setup-Flow -->
+            <div id="totp-setup-section" style="display:none;flex-direction:column;gap:14px">
+              <div style="font-size:13px;color:var(--muted)">Scanne den QR-Code mit deiner Authenticator-App (z.B. Google Authenticator, Authy, Bitwarden) und gib dann den generierten Code zur Bestätigung ein.</div>
+              <div style="display:flex;justify-content:center">
+                <div class="qr-box" id="totp-qr-box"><div style="color:#555;font-size:12px;padding:20px">QR wird geladen…</div></div>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Secret-Key (manuell eingeben falls QR nicht funktioniert)</label>
+                <div style="font-family:'JetBrains Mono',monospace;font-size:12px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px;word-break:break-all;color:var(--accent3)" id="totp-secret-text">–</div>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Bestätigungscode eingeben *</label>
+                <input type="text" class="totp-code-input" id="totp-confirm-code" placeholder="000000" maxlength="6" style="font-size:18px;letter-spacing:4px">
+              </div>
+              <div style="display:flex;gap:8px">
+                <button class="btn btn-primary btn-sm" onclick="confirmTotpSetup()">✔ 2FA aktivieren</button>
+                <button class="btn btn-ghost btn-sm" onclick="cancelTotpSetup()">Abbrechen</button>
+              </div>
+            </div>
+
+            <!-- TOTP-Buttons -->
+            <div id="totp-btn-section" style="display:flex;gap:8px">
+              <button class="btn btn-green btn-sm" id="totp-enable-btn" onclick="startTotpSetup()" style="display:none">🔐 2FA einrichten</button>
+              <button class="btn btn-danger btn-sm" id="totp-disable-btn" onclick="disableMyTotp()" style="display:none">🗑 2FA deaktivieren</button>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- PAGE: ADMIN -->
+      <div class="page" id="page-admin">
+
+        <!-- Tab-Leiste -->
+        <div style="display:flex;gap:4px;border-bottom:2px solid var(--border);margin-bottom:20px;flex-shrink:0">
+          <button class="btn btn-ghost btn-sm admin-tab active" onclick="switchAdminTab('users')" id="atab-users">👥 Benutzer</button>
+          <button class="btn btn-ghost btn-sm admin-tab" onclick="switchAdminTab('perms')" id="atab-perms">🔑 Berechtigungen</button>
+          <button class="btn btn-ghost btn-sm admin-tab" onclick="switchAdminTab('audit')" id="atab-audit">📋 Audit-Log</button>
+          <button class="btn btn-ghost btn-sm admin-tab" onclick="switchAdminTab('authsettings')" id="atab-authsettings">⚙️ Auth-Einstellungen</button>
+        </div>
+
+        <!-- ── TAB: BENUTZER ── -->
+        <div id="admin-tab-users" style="display:flex;flex-direction:column;gap:16px">
+          <div class="panel">
+            <div class="panel-header">
+              <span class="panel-title">👥 Benutzerverwaltung</span>
+              <button class="btn btn-primary btn-sm" onclick="openUserModal()">＋ Benutzer anlegen</button>
+            </div>
+            <div style="overflow-x:auto">
+              <table class="user-table" id="user-table-body">
+                <thead><tr>
+                  <th>Benutzername</th><th>Rolle</th><th>Status</th><th>2FA</th><th>Letzter Login</th><th style="width:130px">Aktionen</th>
+                </tr></thead>
+                <tbody id="user-tbody"><tr><td colspan="6" style="text-align:center;color:var(--muted);padding:20px">Wird geladen…</td></tr></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── TAB: BERECHTIGUNGEN ── -->
+        <div id="admin-tab-perms" style="display:none;flex-direction:column;gap:16px">
+          <div class="panel">
+            <div class="panel-header">
+              <span class="panel-title">🔑 Script-Berechtigungen</span>
+              <div style="display:flex;align-items:center;gap:10px">
+                <label class="form-label" style="margin:0">Benutzer:</label>
+                <select class="form-input btn-sm" id="perm-user-select" onchange="loadPermsForUser()" style="width:180px"></select>
+              </div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 90px 90px 90px 80px;padding:8px 16px;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;border-bottom:1px solid var(--border)">
+              <span>Script</span><span style="text-align:center">Sehen</span><span style="text-align:center">Ausführen</span><span style="text-align:center">Bearbeiten</span><span></span>
+            </div>
+            <div id="perm-list" style="flex:1;overflow-y:auto;max-height:480px">
+              <div class="empty-state"><div class="icon">🔑</div><p>Benutzer auswählen</p></div>
+            </div>
+            <div style="padding:12px 16px;border-top:1px solid var(--border);display:flex;gap:8px">
+              <button class="btn btn-green btn-sm" onclick="grantAllPerms()">✔ Alle freigeben</button>
+              <button class="btn btn-danger btn-sm" onclick="revokeAllPerms()">✘ Alle sperren</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── TAB: AUDIT-LOG ── -->
+        <div id="admin-tab-audit" style="display:none;flex-direction:column;gap:16px">
+          <div class="panel" style="flex:1">
+            <div class="panel-header">
+              <span class="panel-title">📋 Audit-Log</span>
+              <div class="panel-actions">
+                <button class="btn btn-ghost btn-sm" onclick="loadAuditLog()">🔄 Aktualisieren</button>
+                <button class="btn btn-green btn-sm" onclick="exportAudit()">⬇ CSV Export</button>
+                <button class="btn btn-danger btn-sm" onclick="clearAuditConfirm()">🗑 Leeren</button>
+              </div>
+            </div>
+            <div style="overflow:auto;flex:1;max-height:520px">
+              <table class="audit-table" style="width:100%">
+                <thead><tr><th>Zeitpunkt</th><th>Benutzer</th><th>Aktion</th><th>Ziel</th><th>Details</th></tr></thead>
+                <tbody id="audit-tbody"><tr><td colspan="5" style="text-align:center;color:var(--muted);padding:20px">Wird geladen…</td></tr></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── TAB: AUTH-EINSTELLUNGEN ── -->
+        <div id="admin-tab-authsettings" style="display:none;flex-direction:column;gap:16px;max-width:560px">
+          <div class="settings-section">
+            <div class="settings-section-title">🔒 Passwort-Richtlinien</div>
+            <div class="form-group"><label class="form-label">Mindest-Passwortlänge</label>
+              <input type="number" class="form-input" id="cfg-pw-min" min="6" max="32" value="8" style="max-width:100px">
+            </div>
+            <div class="form-group"><label class="form-label">Maximale Fehlversuche vor Lockout</label>
+              <input type="number" class="form-input" id="cfg-max-vers" min="3" max="20" value="5" style="max-width:100px">
+            </div>
+            <div class="form-group"><label class="form-label">Lockout-Dauer (Minuten)</label>
+              <input type="number" class="form-input" id="cfg-lockout-min" min="1" max="60" value="5" style="max-width:100px">
+            </div>
+          </div>
+          <div class="settings-section">
+            <div class="settings-section-title">⏱ Session</div>
+            <div class="form-group"><label class="form-label">Inaktivitäts-Timeout (Minuten, 0 = deaktiviert)</label>
+              <input type="number" class="form-input" id="cfg-timeout" min="0" max="480" value="30" style="max-width:100px">
+            </div>
+          </div>
+          <div class="settings-section">
+            <div class="settings-section-title">🔐 2FA</div>
+            <label class="form-check" style="font-size:13px">
+              <input type="checkbox" id="cfg-totp-force" style="accent-color:var(--accent1)"> 2FA für alle Benutzer erzwingen
+            </label>
+            <div style="font-size:12px;color:var(--muted)">Benutzer ohne 2FA werden beim nächsten Login aufgefordert, es einzurichten.</div>
+          </div>
+          <button class="btn btn-primary btn-sm" style="align-self:flex-start" onclick="saveAuthSettings()">💾 Einstellungen speichern</button>
+        </div>
+
+      </div>
+
     </div>
   </main>
 </div>
@@ -1141,6 +1481,56 @@ input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-
 
 <div id="toasts"></div>
 
+<!-- MODAL: Benutzer anlegen/bearbeiten -->
+<div class="modal-overlay" id="modal-user">
+  <div class="modal" style="width:480px">
+    <div class="modal-header">
+      <span class="modal-title" id="user-modal-title">Benutzer anlegen</span>
+      <button class="icon-btn" onclick="closeUserModal()" style="font-size:18px;color:var(--muted)">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="user-modal-id">
+      <div class="form-group"><label class="form-label">Benutzername *</label><input type="text" class="form-input" id="user-modal-name" placeholder="max.mustermann" autocomplete="off"></div>
+      <div class="form-group"><label class="form-label">Rolle</label>
+        <select class="form-input" id="user-modal-rolle">
+          <option value="user">👤 Benutzer (user)</option>
+          <option value="readonly">👁 Nur-Lesen (readonly)</option>
+          <option value="admin">🛡️ Administrator (admin)</option>
+        </select>
+      </div>
+      <div id="user-modal-pw-section" style="display:flex;flex-direction:column;gap:12px">
+        <div class="form-group"><label class="form-label" id="user-modal-pw-label">Temporäres Passwort *</label><input type="password" class="form-input" id="user-modal-pw" placeholder="Passwort" autocomplete="new-password"></div>
+      </div>
+      <label class="form-check"><input type="checkbox" id="user-modal-aktiv" checked> Konto aktiv</label>
+      <div class="auth-error" id="user-modal-error"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeUserModal()">Abbrechen</button>
+      <button class="btn btn-primary" onclick="saveUser()">💾 Speichern</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Passwort zurücksetzen (Admin) -->
+<div class="modal-overlay" id="modal-reset-pw">
+  <div class="modal" style="width:420px">
+    <div class="modal-header">
+      <span class="modal-title">🔑 Passwort zurücksetzen</span>
+      <button class="icon-btn" onclick="closeResetPwModal()" style="font-size:18px;color:var(--muted)">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="reset-pw-user-id">
+      <div style="font-size:13px;color:var(--muted)">Neues temporäres Passwort für <strong id="reset-pw-username"></strong>. Der Benutzer wird beim nächsten Login aufgefordert, es zu ändern.</div>
+      <div class="form-group"><label class="form-label">Temporäres Passwort *</label><input type="password" class="form-input" id="reset-pw-value" placeholder="Temporäres Passwort" autocomplete="new-password"></div>
+      <div class="auth-error" id="reset-pw-error"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeResetPwModal()">Abbrechen</button>
+      <button class="btn btn-danger" onclick="doResetPw()">🔑 Passwort zurücksetzen</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL: Log-Detail / Vollausgabe -->
 <div class="modal-overlay" id="modal-log-detail">
   <div class="modal" style="width:640px;max-width:95vw">
@@ -1203,22 +1593,225 @@ let newFiles   = [];
 let termCleanup = [];
 let editorFilename = '';
 
+// Auth-State
+let currentUser = null;   // { id, username, rolle, totp_aktiv, muss_pw_aendern }
+let pendingTotpToken = null;
+
+// ── AUTH HELPERS ──────────────────────────────────────────────────────────────
+function showAuthOverlay(id) {
+  ['auth-setup','auth-login','auth-totp','auth-changepw','auth-force-totp'].forEach(oid => {
+    document.getElementById(oid).classList.toggle('hidden', oid !== id);
+  });
+}
+
+function hideAllAuthOverlays() {
+  ['auth-setup','auth-login','auth-totp','auth-changepw','auth-force-totp'].forEach(id =>
+    document.getElementById(id).classList.add('hidden'));
+}
+
+function setAuthError(elId, msg) {
+  const el = document.getElementById(elId);
+  if (!el) return;
+  el.textContent = msg || '';
+  el.classList.toggle('visible', !!msg);
+  el.style.display = msg ? 'block' : 'none';
+}
+
+// ── AUTH FLOWS ────────────────────────────────────────────────────────────────
+async function doSetup() {
+  setAuthError('setup-error', '');
+  const username = document.getElementById('setup-username').value.trim();
+  const pw       = document.getElementById('setup-password').value;
+  const pw2      = document.getElementById('setup-password2').value;
+  if (!username || !pw) return setAuthError('setup-error', 'Alle Pflichtfelder ausfüllen');
+  if (pw !== pw2)        return setAuthError('setup-error', 'Passwörter stimmen nicht überein');
+  if (pw.length < 8)     return setAuthError('setup-error', 'Passwort muss mindestens 8 Zeichen haben');
+  document.getElementById('setup-btn').disabled = true;
+  const r = await window.api.auth.setup({ username, password: pw });
+  document.getElementById('setup-btn').disabled = false;
+  if (!r.success) return setAuthError('setup-error', r.error || 'Fehler');
+  showAuthOverlay('auth-login');
+  showToast('Admin-Konto erstellt. Bitte anmelden.', 'ok');
+}
+
+async function doLogin() {
+  setAuthError('login-error', '');
+  const username = document.getElementById('login-username').value.trim();
+  const password = document.getElementById('login-password').value;
+  if (!username || !password) return setAuthError('login-error', 'Bitte alle Felder ausfüllen');
+  document.getElementById('login-btn').disabled = true;
+  const r = await window.api.auth.login({ username, password });
+  document.getElementById('login-btn').disabled = false;
+  if (!r.success) return setAuthError('login-error', r.error || 'Anmeldung fehlgeschlagen');
+  if (r.requires2FA) {
+    pendingTotpToken = r.pendingToken;
+    document.getElementById('totp-login-user').textContent = `2FA für: ${r.username}`;
+    document.getElementById('totp-code').value = '';
+    showAuthOverlay('auth-totp');
+    setTimeout(() => document.getElementById('totp-code').focus(), 100);
+    return;
+  }
+  onLoginSuccess(r.user, r.requiresTotpSetup);
+}
+
+async function doTotp() {
+  setAuthError('totp-error', '');
+  const code = document.getElementById('totp-code').value.replace(/\s/g,'');
+  if (code.length !== 6) return setAuthError('totp-error', 'Bitte 6-stelligen Code eingeben');
+  document.getElementById('totp-btn').disabled = true;
+  const r = await window.api.auth.verifyTotp({ pendingToken: pendingTotpToken, code });
+  document.getElementById('totp-btn').disabled = false;
+  if (!r.success) return setAuthError('totp-error', r.error || 'Ungültiger Code');
+  pendingTotpToken = null;
+  onLoginSuccess(r.user, r.requiresTotpSetup);
+}
+
+function backToLogin() {
+  pendingTotpToken = null;
+  document.getElementById('login-password').value = '';
+  showAuthOverlay('auth-login');
+}
+
+async function doChangePw() {
+  setAuthError('changepw-error', '');
+  const oldPw = document.getElementById('changepw-old').value;
+  const newPw = document.getElementById('changepw-new').value;
+  const newPw2= document.getElementById('changepw-new2').value;
+  if (!oldPw || !newPw) return setAuthError('changepw-error', 'Alle Felder ausfüllen');
+  if (newPw !== newPw2)  return setAuthError('changepw-error', 'Neue Passwörter stimmen nicht überein');
+  const r = await window.api.auth.changePassword({ oldPassword: oldPw, newPassword: newPw });
+  if (!r.success) return setAuthError('changepw-error', r.error || 'Fehler');
+  currentUser.muss_pw_aendern = 0;
+  hideAllAuthOverlays();
+  showToast('✔ Passwort erfolgreich geändert', 'ok');
+}
+
+function onLoginSuccess(user, requiresTotpSetup) {
+  currentUser = user;
+  updateSidebarUser();
+  if (user.muss_pw_aendern) {
+    showAuthOverlay('auth-changepw');
+    return;
+  }
+  if (requiresTotpSetup) {
+    startForcedTotpSetup();
+    return;
+  }
+  hideAllAuthOverlays();
+  appStart();
+}
+
+async function doLogout() {
+  await window.api.auth.logout();
+  currentUser = null;
+
+  // ── UI komplett zurücksetzen ──────────────────────────────────────────
+  scripts = [];
+
+  // Script-Liste leeren
+  const scriptList = document.getElementById('script-list');
+  if (scriptList) scriptList.innerHTML = '<div class="empty-state"><div class="icon">📭</div><p>Nicht angemeldet</p></div>';
+
+  // Stats nullen
+  ['stat-total','stat-active','stat-cats'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.textContent = '0';
+  });
+  document.getElementById('stat-lastrun').textContent = '–';
+  document.getElementById('stat-lastrun-time').textContent = '–';
+  document.getElementById('badge-count').textContent = '0';
+  document.getElementById('badge-favs').textContent  = '0';
+
+  // Detail-Panel leeren
+  const dp = document.getElementById('detail-panel');
+  if (dp) dp.innerHTML = '<div class="detail-empty"><div style="font-size:32px;opacity:.3">👆</div><div>Script auswählen</div></div>';
+
+  // Logs, Favorites, Chains leeren
+  const favList = document.getElementById('fav-list');
+  if (favList) favList.innerHTML = '<div class="empty-state"><div class="icon">⭐</div><p>Nicht angemeldet</p></div>';
+  const chainList = document.getElementById('chain-list');
+  if (chainList) chainList.innerHTML = '<div class="empty-state"><div class="icon">🔗</div><p>Nicht angemeldet</p></div>';
+  const logTbody = document.getElementById('log-tbody');
+  if (logTbody) logTbody.innerHTML = '<tr><td colspan="6" style="color:var(--muted);text-align:center;padding:20px">Nicht angemeldet</td></tr>';
+
+  // Scan-Banner ausblenden
+  const banner = document.getElementById('scan-banner');
+  if (banner) banner.style.display = 'none';
+
+  // Sidebar-User zurücksetzen
+  document.getElementById('sidebar-avatar').textContent   = '?';
+  document.getElementById('sidebar-username').textContent = '–';
+  document.getElementById('sidebar-userrole').textContent = '–';
+  document.getElementById('nav-admin').style.display      = 'none';
+
+  // Zur Scripts-Page wechseln (damit nach Re-Login die richtige Page aktiv ist)
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById('page-scripts')?.classList.add('active');
+
+  // Login anzeigen
+  document.getElementById('login-password').value = '';
+  document.getElementById('login-username').value = '';
+  showAuthOverlay('auth-login');
+  setTimeout(() => document.getElementById('login-username').focus(), 100);
+}
+
+function updateSidebarUser() {
+  if (!currentUser) return;
+  const initial = (currentUser.username || '?')[0].toUpperCase();
+  document.getElementById('sidebar-avatar').textContent   = initial;
+  document.getElementById('sidebar-username').textContent = currentUser.username;
+  document.getElementById('sidebar-userrole').textContent =
+    currentUser.rolle === 'admin' ? '🛡️ Administrator' :
+    currentUser.rolle === 'readonly' ? '👁 Nur-Lesen' : '👤 Benutzer';
+  document.getElementById('nav-admin').style.display = currentUser.rolle === 'admin' ? 'flex' : 'none';
+}
+
 // ── INIT ─────────────────────────────────────────────────────────────────────
 async function init() {
-  loadSavedTheme();   // Theme sofort anwenden bevor irgendwas sichtbar wird
+  loadSavedTheme();
+
+  // Session-Expired-Event registrieren
+  window.api.auth.onSessionExpired(() => {
+    showToast('⏱ Session abgelaufen — bitte erneut anmelden', 'err');
+    currentUser = null;
+    scripts = [];
+    showAuthOverlay('auth-login');
+  });
+
+  // Auth-Start
+  const setup = await window.api.auth.needsSetup();
+  if (setup.needsSetup) {
+    showAuthOverlay('auth-setup');
+    setTimeout(() => document.getElementById('setup-username').focus(), 100);
+    return;
+  }
+
+  // Bestehende Session prüfen (z.B. wenn App aus Tray wieder geöffnet)
+  const session = await window.api.auth.getSession();
+  if (session.loggedIn) {
+    onLoginSuccess(session.user);
+  } else {
+    showAuthOverlay('auth-login');
+    setTimeout(() => document.getElementById('login-username').focus(), 100);
+  }
+}
+
+// ── APP START (nach erfolgreichem Login) ─────────────────────────────────────
+async function appStart() {
   const info = await window.api.app.info();
   const ver  = info.version || '2.0.0';
-  ['app-version','sb-version','about-version'].forEach(id =>
-    document.getElementById(id).textContent = ver);
-  document.getElementById('cfg-datapath').textContent = info.dataPath || '–';
-  document.getElementById('cfg-libpath').textContent  = info.libPath  || '–';
-  document.getElementById('cfg-dbpath').textContent   = info.dbPath   || '–';
+  ['app-version','sb-version','about-version'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.textContent = ver;
+  });
+  const dp = document.getElementById('cfg-datapath'); if(dp) dp.textContent = info.dataPath || '–';
+  const lp = document.getElementById('cfg-libpath');  if(lp) lp.textContent = info.libPath  || '–';
+  const dbp= document.getElementById('cfg-dbpath');   if(dbp)dbp.textContent = info.dbPath   || '–';
+
   await loadScripts();
-  await scanLib();
+  if (currentUser?.rolle === 'admin') await scanLib();
   await loadFavorites();
   await loadChains();
   await loadSchedules();
-  // Scheduler-Benachrichtigung
+
   window.api.scheduler.onFired(d => {
     showToast(`🕐 Geplant gestartet: ${d.scheduleName}`, 'info');
     loadSchedules();
@@ -2322,6 +2915,8 @@ const pageTitles={
   update:   'Updates <span>// Releases</span>',
   settings: 'Einstellungen <span>// Konfiguration</span>',
   about:    'Info <span>// PS Script Manager v2</span>',
+  admin:    'Administration <span>// Benutzer &amp; Berechtigungen</span>',
+  profile:  'Mein Profil <span>// Konto &amp; 2FA</span>',
 };
 const topbarIds={scripts:['search-wrap','btn-add','btn-import-ps1','btn-import-csv','btn-open-lib']};
 function showPage(name){
@@ -2335,6 +2930,8 @@ function showPage(name){
   if(name==='favorites') loadFavorites();
   if(name==='chains')    loadChains();
   if(name==='scheduler') loadSchedules();
+  if(name==='profile')   openProfilePage();
+  if(name==='admin')     openAdminPage();
   if(name==='update') {
     window.api.app.info().then(i => {
       document.getElementById('upd-current').textContent = i.version || '–';
@@ -4058,21 +4655,414 @@ document.addEventListener('DOMContentLoaded',()=>{
     updateEditorInfo(e.target);
   });
   document.getElementById('editor-textarea').addEventListener('keydown', e=>{
-    // Tab-Taste = 4 Leerzeichen
     if(e.key==='Tab'){e.preventDefault();const s=e.target.selectionStart;const v=e.target.value;e.target.value=v.slice(0,s)+'    '+v.slice(e.target.selectionEnd);e.target.selectionStart=e.target.selectionEnd=s+4;}
-    // Ctrl+S = Speichern
     if((e.ctrlKey||e.metaKey)&&e.key==='s'){e.preventDefault();saveEditorCode();}
   });
+  // Login per Enter
+  document.getElementById('login-password').addEventListener('keydown',e=>{ if(e.key==='Enter') doLogin(); });
+  document.getElementById('login-username').addEventListener('keydown',e=>{ if(e.key==='Enter') document.getElementById('login-password').focus(); });
+  document.getElementById('setup-password2').addEventListener('keydown',e=>{ if(e.key==='Enter') doSetup(); });
+  document.getElementById('totp-code').addEventListener('keydown',e=>{ if(e.key==='Enter') doTotp(); });
+  document.getElementById('totp-code').addEventListener('input',e=>{ if(e.target.value.replace(/\s/g,'').length===6) doTotp(); });
 });
 
 document.addEventListener('keydown', e=>{
   if(e.key==='Escape'){
     closeModal(); closeScanModal(); closeChainModal(); closeScheduleModal();
+    closeUserModal(); closeResetPwModal();
     if(!document.getElementById('term-close-btn').disabled) closeTerminal();
     if(!document.getElementById('chain-monitor-close').disabled) closeChainMonitor();
     closeEditor();
   }
 });
+
+// ── SHOW PAGE (erweitert um profile + admin) ──────────────────────────────────
+const PAGE_TITLES = {
+  scripts:'Scripts <span>// Bibliothek</span>', favorites:'Favoriten <span>// Schnellstart</span>',
+  chains:'Verkettungen <span>// Chains</span>', scheduler:'Scheduler <span>// Geplante Ausführungen</span>',
+  logs:'Logs <span>// Ausführungsprotokoll</span>', update:'Updates <span>// App &amp; Scripte</span>',
+  settings:'Einstellungen <span>// Design &amp; Config</span>', about:'Info <span>// Über die App</span>',
+  admin:'Administration <span>// Benutzer &amp; Berechtigungen</span>',
+  profile:'Mein Profil <span>// Konto &amp; 2FA</span>',
+};
+
+// ── PROFIL ────────────────────────────────────────────────────────────────────
+function openProfilePage() {
+  if (!currentUser) return;
+  document.getElementById('profile-username').textContent = currentUser.username;
+  document.getElementById('profile-avatar').textContent   = currentUser.username[0].toUpperCase();
+  const roleMap = { admin:'🛡️ Administrator', user:'👤 Benutzer', readonly:'👁 Nur-Lesen' };
+  const roleColor= { admin:'var(--red)', user:'var(--accent1)', readonly:'var(--muted)' };
+  document.getElementById('profile-role-badge').innerHTML =
+    `<span class="role-badge ${currentUser.rolle}">${roleMap[currentUser.rolle]||currentUser.rolle}</span>`;
+  // TOTP-Status
+  const totpOn = !!currentUser.totp_aktiv;
+  document.getElementById('totp-status-info').innerHTML = totpOn
+    ? `<span style="color:var(--green);font-weight:700">✔ 2FA ist aktiviert</span> — dein Konto ist mit Zwei-Faktor-Authentifizierung geschützt.`
+    : `<span style="color:var(--muted)">2FA ist nicht aktiviert.</span> Wir empfehlen, 2FA für mehr Sicherheit einzurichten.`;
+  document.getElementById('totp-enable-btn').style.display  = totpOn ? 'none' : '';
+  document.getElementById('totp-disable-btn').style.display = totpOn ? ''     : 'none';
+  document.getElementById('totp-setup-section').style.display = 'none';
+}
+
+// ── ERZWUNGENES TOTP-SETUP (beim Login) ──────────────────────────────────────
+async function startForcedTotpSetup() {
+  showAuthOverlay('auth-force-totp');
+  document.getElementById('force-totp-code').value = '';
+  setAuthError('force-totp-error', '');
+
+  const r = await window.api.auth.totp.setup();
+  if (!r.success) {
+    setAuthError('force-totp-error', 'Fehler beim Generieren: ' + (r.error || 'TOTP nicht verfügbar'));
+    return;
+  }
+
+  document.getElementById('force-totp-secret').textContent = r.secret || '–';
+  const qrBox = document.getElementById('force-totp-qr');
+  if (r.qrDataUrl) {
+    qrBox.innerHTML = `<img src="${r.qrDataUrl}" alt="QR-Code" style="width:180px;height:180px">`;
+  } else {
+    qrBox.innerHTML = `<div style="padding:12px;font-size:12px;color:#555">QR nicht verfügbar.<br>Bitte Secret manuell eingeben.</div>`;
+  }
+  setTimeout(() => document.getElementById('force-totp-code').focus(), 100);
+
+  // Auto-Submit wenn 6 Zeichen eingegeben
+  document.getElementById('force-totp-code').addEventListener('input', e => {
+    if (e.target.value.replace(/\s/g,'').length === 6) doForceTotpConfirm();
+  }, { once: true });
+}
+
+async function doForceTotpConfirm() {
+  setAuthError('force-totp-error', '');
+  const code = document.getElementById('force-totp-code').value.replace(/\s/g,'');
+  if (code.length !== 6) return setAuthError('force-totp-error', 'Bitte 6-stelligen Code eingeben');
+
+  const btn = document.getElementById('force-totp-btn');
+  btn.disabled = true;
+  const r = await window.api.auth.totp.confirm({ code });
+  btn.disabled = false;
+
+  if (!r.success) {
+    setAuthError('force-totp-error', 'Ungültiger Code – bitte erneut versuchen');
+    document.getElementById('force-totp-code').value = '';
+    document.getElementById('force-totp-code').focus();
+    return;
+  }
+
+  currentUser.totp_aktiv = 1;
+  showToast('✔ 2FA erfolgreich eingerichtet', 'ok');
+  hideAllAuthOverlays();
+  appStart();
+}
+
+async function startTotpSetup() {
+  const r = await window.api.auth.totp.setup();
+  if (!r.success) return showToast('Fehler: ' + (r.error || 'TOTP nicht verfügbar'), 'err');
+  document.getElementById('totp-secret-text').textContent = r.secret || '–';
+  const qrBox = document.getElementById('totp-qr-box');
+  if (r.qrDataUrl) {
+    qrBox.innerHTML = `<img src="${r.qrDataUrl}" alt="QR-Code">`;
+  } else {
+    qrBox.innerHTML = `<div style="padding:12px;font-size:12px;color:#555">QR nicht verfügbar.<br>Bitte Secret manuell eingeben.</div>`;
+  }
+  document.getElementById('totp-setup-section').style.display = 'flex';
+  document.getElementById('totp-btn-section').style.display = 'none';
+  document.getElementById('totp-confirm-code').value = '';
+  document.getElementById('totp-confirm-code').focus();
+}
+
+async function confirmTotpSetup() {
+  const code = document.getElementById('totp-confirm-code').value.replace(/\s/g,'');
+  if (code.length !== 6) return showToast('Bitte 6-stelligen Code eingeben', 'err');
+  const r = await window.api.auth.totp.confirm({ code });
+  if (!r.success) return showToast('Ungültiger Code: ' + (r.error||''), 'err');
+  currentUser.totp_aktiv = 1;
+  showToast('✔ 2FA erfolgreich aktiviert', 'ok');
+  document.getElementById('totp-setup-section').style.display = 'none';
+  document.getElementById('totp-btn-section').style.display = 'flex';
+  openProfilePage();
+}
+
+function cancelTotpSetup() {
+  document.getElementById('totp-setup-section').style.display = 'none';
+  document.getElementById('totp-btn-section').style.display = 'flex';
+}
+
+async function disableMyTotp() {
+  if (!confirm('2FA wirklich deaktivieren? Dein Konto wird damit weniger sicher.')) return;
+  const r = await window.api.auth.totp.disable({});
+  if (!r.success) return showToast('Fehler: ' + (r.error||''), 'err');
+  currentUser.totp_aktiv = 0;
+  showToast('2FA deaktiviert', 'info');
+  openProfilePage();
+}
+
+async function changeMyPassword() {
+  setAuthError('pw-change-error', '');
+  const oldPw = document.getElementById('pw-old').value;
+  const newPw = document.getElementById('pw-new').value;
+  const newPw2= document.getElementById('pw-new2').value;
+  if (!oldPw || !newPw) return setAuthError('pw-change-error', 'Alle Felder ausfüllen');
+  if (newPw !== newPw2)  return setAuthError('pw-change-error', 'Neue Passwörter stimmen nicht überein');
+  const r = await window.api.auth.changePassword({ oldPassword:oldPw, newPassword:newPw });
+  if (!r.success) return setAuthError('pw-change-error', r.error || 'Fehler');
+  showToast('✔ Passwort geändert', 'ok');
+  document.getElementById('pw-old').value = document.getElementById('pw-new').value = document.getElementById('pw-new2').value = '';
+}
+
+// ── ADMIN: BENUTZER ────────────────────────────────────────────────────────────
+let userModalMode = 'add'; // 'add' | 'edit'
+
+function openUserModal(user) {
+  userModalMode = user ? 'edit' : 'add';
+  document.getElementById('user-modal-title').textContent = user ? 'Benutzer bearbeiten' : 'Benutzer anlegen';
+  document.getElementById('user-modal-id').value    = user ? user.id    : '';
+  document.getElementById('user-modal-name').value  = user ? user.username : '';
+  document.getElementById('user-modal-rolle').value = user ? user.rolle : 'user';
+  document.getElementById('user-modal-aktiv').checked = user ? !!user.aktiv : true;
+  document.getElementById('user-modal-pw').value    = '';
+  document.getElementById('user-modal-pw-label').textContent = user ? 'Neues Passwort (leer = nicht ändern)' : 'Temporäres Passwort *';
+  setAuthError('user-modal-error', '');
+  document.getElementById('modal-user').classList.add('open');
+}
+
+function closeUserModal() { document.getElementById('modal-user').classList.remove('open'); }
+
+async function saveUser() {
+  setAuthError('user-modal-error', '');
+  const id     = document.getElementById('user-modal-id').value;
+  const username = document.getElementById('user-modal-name').value.trim();
+  const rolle  = document.getElementById('user-modal-rolle').value;
+  const aktiv  = document.getElementById('user-modal-aktiv').checked;
+  const pw     = document.getElementById('user-modal-pw').value;
+
+  if (!username) return setAuthError('user-modal-error', 'Benutzername erforderlich');
+
+  let r;
+  if (userModalMode === 'add') {
+    if (!pw) return setAuthError('user-modal-error', 'Passwort erforderlich');
+    r = await window.api.users.add({ username, password:pw, rolle, aktiv });
+  } else {
+    const data = { id:parseInt(id), username, rolle, aktiv, muss_pw_aendern:0 };
+    r = await window.api.users.update(data);
+    if (r.success && pw) {
+      await window.api.users.resetPassword({ userId:parseInt(id), tempPassword:pw });
+    }
+  }
+  if (!r.success) return setAuthError('user-modal-error', r.error || 'Fehler');
+  closeUserModal();
+  showToast(userModalMode==='add' ? '✔ Benutzer angelegt' : '✔ Benutzer aktualisiert', 'ok');
+  await loadUserTable();
+}
+
+async function deleteUserConfirm(userId, username) {
+  if (!confirm(`Benutzer "${username}" wirklich löschen? Alle Berechtigungen werden entfernt.`)) return;
+  const r = await window.api.users.delete(userId);
+  if (!r.success) return showToast('Fehler: ' + (r.error||''), 'err');
+  showToast('Benutzer gelöscht', 'info');
+  await loadUserTable();
+}
+
+function openResetPwModal(userId, username) {
+  document.getElementById('reset-pw-user-id').value   = userId;
+  document.getElementById('reset-pw-username').textContent = username;
+  document.getElementById('reset-pw-value').value     = '';
+  setAuthError('reset-pw-error', '');
+  document.getElementById('modal-reset-pw').classList.add('open');
+}
+function closeResetPwModal() { document.getElementById('modal-reset-pw').classList.remove('open'); }
+
+async function doResetPw() {
+  setAuthError('reset-pw-error', '');
+  const userId = parseInt(document.getElementById('reset-pw-user-id').value);
+  const tempPassword = document.getElementById('reset-pw-value').value;
+  if (!tempPassword) return setAuthError('reset-pw-error', 'Passwort eingeben');
+  const r = await window.api.users.resetPassword({ userId, tempPassword });
+  if (!r.success) return setAuthError('reset-pw-error', r.error||'Fehler');
+  closeResetPwModal();
+  showToast('✔ Passwort zurückgesetzt. Benutzer muss beim nächsten Login ein neues setzen.', 'ok');
+}
+
+async function loadUserTable() {
+  const users = await window.api.users.getAll();
+  const tbody = document.getElementById('user-tbody');
+  if (!users || !users.length) {
+    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:20px">Keine Benutzer gefunden</td></tr>`;
+    return;
+  }
+  const roleLabel = { admin:'🛡️ Admin', user:'👤 User', readonly:'👁 Readonly' };
+  tbody.innerHTML = users.map(u => `
+    <tr>
+      <td><strong>${escHtml(u.username)}</strong></td>
+      <td><span class="role-badge ${u.rolle}">${roleLabel[u.rolle]||u.rolle}</span></td>
+      <td><span style="color:${u.aktiv?'var(--green)':'var(--muted)'}">${u.aktiv?'✔ Aktiv':'⏸ Inaktiv'}</span></td>
+      <td><span style="color:${u.totp_aktiv?'var(--green)':'var(--muted)'}">${u.totp_aktiv?'🔐 Aktiv':'–'}</span></td>
+      <td style="color:var(--muted)">${u.letzter_login ? u.letzter_login.slice(0,16) : '–'}</td>
+      <td>
+        <div style="display:flex;gap:4px">
+          <button class="icon-btn edit-btn" title="Bearbeiten" onclick="openUserModal(${JSON.stringify(u).replace(/"/g,'&quot;')})">✏️</button>
+          <button class="icon-btn" title="Passwort zurücksetzen" onclick="openResetPwModal(${u.id},'${escHtml(u.username)}')" style="font-size:13px">🔑</button>
+          ${u.id !== currentUser?.id ? `<button class="icon-btn del-btn" title="Löschen" onclick="deleteUserConfirm(${u.id},'${escHtml(u.username)}')">🗑</button>` : ''}
+        </div>
+      </td>
+    </tr>`).join('');
+
+  // Perm-User-Select füllen
+  const select = document.getElementById('perm-user-select');
+  select.innerHTML = `<option value="">Benutzer wählen…</option>` +
+    users.filter(u => u.rolle !== 'admin').map(u =>
+      `<option value="${u.id}">${escHtml(u.username)} (${u.rolle})</option>`).join('');
+}
+
+// ── ADMIN: BERECHTIGUNGEN ──────────────────────────────────────────────────────
+async function loadPermsForUser() {
+  const userId = document.getElementById('perm-user-select').value;
+  const list   = document.getElementById('perm-list');
+  if (!userId) { list.innerHTML = `<div class="empty-state"><div class="icon">🔑</div><p>Benutzer auswählen</p></div>`; return; }
+  const perms  = await window.api.perms.getForUser(parseInt(userId));
+  const allScripts = await window.api.scripts.getAll();
+
+  // Merge: alle Scripts, Perms drüber legen
+  const permMap = {};
+  for (const p of perms) permMap[p.script_id] = p;
+
+  list.innerHTML = allScripts.map(s => {
+    const p = permMap[s.id] || { darf_sehen:0, darf_ausfuehren:0, darf_bearbeiten:0 };
+    return `<div class="perm-row">
+      <div><div style="font-weight:700;font-size:13px">${escHtml(s.name)}</div><div style="font-size:11px;color:var(--muted);font-family:'JetBrains Mono',monospace">${escHtml(s.dateiname)}</div></div>
+      <div style="text-align:center"><button class="perm-toggle ${p.darf_sehen?'on':'off'}" onclick="togglePerm(${userId},${s.id},'sehen',this)">${p.darf_sehen?'✔':''}</button></div>
+      <div style="text-align:center"><button class="perm-toggle ${p.darf_ausfuehren?'on':'off'}" onclick="togglePerm(${userId},${s.id},'ausfuehren',this)">${p.darf_ausfuehren?'✔':''}</button></div>
+      <div style="text-align:center"><button class="perm-toggle ${p.darf_bearbeiten?'on':'off'}" onclick="togglePerm(${userId},${s.id},'bearbeiten',this)">${p.darf_bearbeiten?'✔':''}</button></div>
+      <div></div>
+    </div>`;
+  }).join('') || `<div class="empty-state"><div class="icon">📭</div><p>Keine Scripts vorhanden</p></div>`;
+}
+
+async function togglePerm(userId, scriptId, field, btn) {
+  const isOn = btn.classList.contains('on');
+  const newVal = !isOn;
+  const fieldMap = { sehen:'darf_sehen', ausfuehren:'darf_ausfuehren', bearbeiten:'darf_bearbeiten' };
+
+  // Aktuellen Stand ermitteln
+  const perms = await window.api.perms.getForScript(scriptId);
+  const existing = perms.find(p => p.user_id == userId) || { darf_sehen:0, darf_ausfuehren:0, darf_bearbeiten:0 };
+  const updated = { ...existing, [fieldMap[field]]: newVal?1:0 };
+  await window.api.perms.set({ userId:parseInt(userId), scriptId, ...updated });
+
+  btn.classList.toggle('on', newVal);
+  btn.classList.toggle('off', !newVal);
+  btn.textContent = newVal ? '✔' : '';
+}
+
+async function grantAllPerms() {
+  const userId = document.getElementById('perm-user-select').value;
+  if (!userId) return;
+  const allScripts = await window.api.scripts.getAll();
+  for (const s of allScripts)
+    await window.api.perms.set({ userId:parseInt(userId), scriptId:s.id, darf_sehen:1, darf_ausfuehren:1, darf_bearbeiten:0 });
+  showToast('✔ Alle Scripte freigegeben', 'ok');
+  loadPermsForUser();
+}
+
+async function revokeAllPerms() {
+  const userId = document.getElementById('perm-user-select').value;
+  if (!userId) return;
+  const allScripts = await window.api.scripts.getAll();
+  for (const s of allScripts)
+    await window.api.perms.set({ userId:parseInt(userId), scriptId:s.id, darf_sehen:0, darf_ausfuehren:0, darf_bearbeiten:0 });
+  showToast('Alle Berechtigungen entzogen', 'info');
+  loadPermsForUser();
+}
+
+// ── ADMIN: AUDIT-LOG ──────────────────────────────────────────────────────────
+async function loadAuditLog() {
+  const entries = await window.api.audit.getLog(500);
+  const tbody   = document.getElementById('audit-tbody');
+  if (!entries || !entries.length) {
+    tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:20px">Keine Einträge</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = entries.map(e => {
+    let details = '';
+    try { const d = JSON.parse(e.details||'{}'); details = Object.entries(d).map(([k,v])=>`${k}:${v}`).join(', '); } catch(_){}
+    return `<tr>
+      <td>${e.zeitpunkt||''}</td>
+      <td style="color:var(--accent1)">${escHtml(e.username||'')}</td>
+      <td><span class="audit-aktion">${escHtml(e.aktion||'')}</span></td>
+      <td style="color:var(--muted)">${escHtml(e.ziel_typ||'')}${e.ziel_id?` #${e.ziel_id}`:''}</td>
+      <td style="color:var(--muted);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(details)}">${escHtml(details)}</td>
+    </tr>`;
+  }).join('');
+}
+
+async function exportAudit() {
+  const r = await window.api.audit.exportCsv();
+  if (r.success) showToast('✔ CSV exportiert: ' + (r.path||''), 'ok');
+  else showToast('Fehler: ' + (r.error||''), 'err');
+}
+
+async function clearAuditConfirm() {
+  if (!confirm('Alle Audit-Log-Einträge wirklich löschen?')) return;
+  await window.api.audit.clear();
+  showToast('Audit-Log geleert', 'info');
+  loadAuditLog();
+}
+
+// ── ADMIN: AUTH-EINSTELLUNGEN ──────────────────────────────────────────────────
+async function loadAuthSettings() {
+  const get = async (k) => (await window.api.settings.get(k)).value || '';
+  document.getElementById('cfg-pw-min').value      = await get('pw_min_laenge')   || '8';
+  document.getElementById('cfg-max-vers').value    = await get('max_login_vers')  || '5';
+  document.getElementById('cfg-lockout-min').value = await get('lockout_minuten') || '5';
+  document.getElementById('cfg-timeout').value     = await get('session_timeout') || '30';
+  document.getElementById('cfg-totp-force').checked= (await get('totp_erzwungen')) === '1';
+}
+
+async function saveAuthSettings() {
+  const btn = document.querySelector('[onclick="saveAuthSettings()"]');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Speichern…'; }
+
+  try {
+    const settings = [
+      ['pw_min_laenge',   document.getElementById('cfg-pw-min').value],
+      ['max_login_vers',  document.getElementById('cfg-max-vers').value],
+      ['lockout_minuten', document.getElementById('cfg-lockout-min').value],
+      ['session_timeout', document.getElementById('cfg-timeout').value],
+      ['totp_erzwungen',  document.getElementById('cfg-totp-force').checked ? '1' : '0'],
+    ];
+
+    for (const [key, value] of settings) {
+      const r = await window.api.settings.set(key, value);
+      if (!r || !r.success) throw new Error(`Fehler beim Speichern von "${key}"`);
+    }
+
+    // Sofort zurücklesen zur Verifikation
+    await loadAuthSettings();
+    showToast('✔ Einstellungen gespeichert und verifiziert', 'ok');
+  } catch(e) {
+    showToast('Fehler: ' + e.message, 'err');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '💾 Einstellungen speichern'; }
+  }
+}
+
+// ── ADMIN TAB-SWITCHER ────────────────────────────────────────────────────────
+async function switchAdminTab(tab) {
+  ['users','perms','audit','authsettings'].forEach(t => {
+    document.getElementById(`admin-tab-${t}`).style.display = t===tab ? 'flex' : 'none';
+    document.getElementById(`atab-${t}`).classList.toggle('active', t===tab);
+  });
+  if (tab==='users')        await loadUserTable();
+  if (tab==='audit')        await loadAuditLog();
+  if (tab==='authsettings') await loadAuthSettings();
+}
+
+// Auth-Settings auch beim ersten Öffnen der Admin-Page laden
+async function openAdminPage() {
+  await switchAdminTab('users');
+  // Settings im Hintergrund vorladen damit sie beim Tab-Wechsel sofort da sind
+  loadAuthSettings();
+}
 
 init();
 showPage('scripts');

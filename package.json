@@ -1,6 +1,6 @@
 {
   "name": "ps-script-manager",
-  "version": "2.0.8",
+  "version": "2.0.9",
   "description": "PS Script Manager - PowerShell Script Verwaltung",
   "main": "main.js",
   "author": "Tobias Scherer",
@@ -10,8 +10,11 @@
     "build": "electron-builder --win --x64"
   },
   "dependencies": {
-    "sql.js": "^1.14.1",
-    "electron-updater": "^6.8.3"
+    "canvas": "^3.2.3",
+    "electron-updater": "^6.8.3",
+    "otpauth": "^9.5.1",
+    "qrcode": "^1.5.4",
+    "sql.js": "^1.14.1"
   },
   "devDependencies": {
     "electron": "^41.2.1",
