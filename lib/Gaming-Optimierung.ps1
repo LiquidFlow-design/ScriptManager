@@ -377,6 +377,7 @@ function Enable-HAGS {
         Set-ItemProperty -Path $path -Name "HwSchMode" -Value 2 -Type DWord
         Write-OK "HAGS aktiviert. (Neustart erforderlich)"
         Write-Info "Hinweis: HAGS benoetigt eine GTX 1000 / RX 5000 Serie oder neuer + Windows 10 2004+"
+        Write-Info "Wichtig: Falls weiterhin Frame-Drops auftreten, HAGS testweise deaktivieren (Wert 1 statt 2)."
     }
     catch {
         Write-Warn "HAGS konnte nicht aktiviert werden: $_"
@@ -447,6 +448,7 @@ function Set-TimerResolution {
         Set-ItemProperty -Path $path -Name "GlobalTimerResolutionRequests" -Value 1 -Type DWord
         Write-OK "Timer Resolution auf 0.5ms gesetzt (weniger Frame-Stutter)."
         Write-Info "Windows 11 23H2+: Wert wird pro Prozess verwaltet - Spiele profitieren automatisch."
+        Write-Warn "Bekannte Ursache fuer Frame-Drops: Falls Thermal Throttling auftritt (CPU zu heiss), diesen Wert auf 0 setzen."
     }
     catch {
         Write-Warn "Timer Resolution konnte nicht gesetzt werden: $_"
@@ -818,7 +820,7 @@ function Set-NetworkAndCPUResponsiveness {
             Set-ItemProperty -Path $gamesPath -Name "Priority"           -Value 6          -Type DWord  -ErrorAction SilentlyContinue
             Set-ItemProperty -Path $gamesPath -Name "Scheduling Category" -Value "High"    -Type String -ErrorAction SilentlyContinue
             Set-ItemProperty -Path $gamesPath -Name "SFIO Priority"      -Value "High"     -Type String -ErrorAction SilentlyContinue
-            Write-OK "SystemResponsiveness auf 0 gesetzt (max. CPU-Zeit fuer Spiele)."
+            Write-OK "SystemResponsiveness auf 10 gesetzt (optimaler Gaming-Wert, Standard: 20)."
             Write-OK "Multimedia-Systemprofil 'Games' auf hoechste Prioritaet gesetzt."
         }
         catch { Write-Warn "SystemResponsiveness konnte nicht gesetzt werden: $_" }
@@ -950,12 +952,12 @@ foreach ($name in $gameProcesses) {
         if (-not (Test-Path $scriptDir)) { New-Item -Path $scriptDir -ItemType Directory -Force | Out-Null }
         Set-Content -Path $scriptPath -Value $taskScript -Encoding UTF8
 
-        # Scheduled Task: laeuft alle 2 Minuten, nur wenn Benutzer eingeloggt
+        # Scheduled Task: laeuft alle 10 Minuten (vorher 2 Min - verursachte CPU-Spikes/Frame-Drops)
         $action   = New-ScheduledTaskAction -Execute "powershell.exe" `
                         -Argument "-NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$scriptPath`""
-        $trigger  = New-ScheduledTaskTrigger -RepetitionInterval (New-TimeSpan -Minutes 2) -Once -At (Get-Date)
+        $trigger  = New-ScheduledTaskTrigger -RepetitionInterval (New-TimeSpan -Minutes 10) -Once -At (Get-Date)
         $settings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit (New-TimeSpan -Minutes 1) `
-                        -MultipleInstances IgnoreNew -Priority 4
+                        -MultipleInstances IgnoreNew -Priority 7
         $principal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccount -RunLevel Highest
 
         Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger `
@@ -1069,11 +1071,17 @@ function Set-NICOptimizations {
                 Write-OK "[$name] Energy Efficient Ethernet (EEE) deaktiviert."
             }
 
-            # Interrupt Moderation deaktivieren (niedrigste moegliche Latenz)
+            # Interrupt Moderation: "Adaptive" statt "Disabled" - verhindert Interrupt Storms bei hohem Netzwerkverkehr
+            # ACHTUNG: "Disabled" kann bei CoD (UDP-intensiv) CPU-Kerne mit Interrupts ueberfluten -> Frame-Drops!
             $im = $props | Where-Object { $_.DisplayName -match "Interrupt Moderation" }
             if ($im) {
-                Set-NetAdapterAdvancedProperty -Name $name -DisplayName $im.DisplayName -DisplayValue "Disabled" -ErrorAction SilentlyContinue
-                Write-OK "[$name] Interrupt Moderation deaktiviert (minimale NIC-Latenz)."
+                # Versuche "Adaptive" zu setzen, falls nicht verfuegbar "Enabled" als Fallback
+                $imVals = $im.ValidDisplayValues
+                $imTarget = $imVals | Where-Object { $_ -match "Adaptive" } | Select-Object -First 1
+                if (-not $imTarget) { $imTarget = $imVals | Where-Object { $_ -match "Enabled|On" } | Select-Object -First 1 }
+                if (-not $imTarget) { $imTarget = "Enabled" }
+                Set-NetAdapterAdvancedProperty -Name $name -DisplayName $im.DisplayName -DisplayValue $imTarget -ErrorAction SilentlyContinue
+                Write-OK "[$name] Interrupt Moderation auf '$imTarget' gesetzt (verhindert CPU-Interrupt-Storms)."
             }
 
             # Receive Buffer erhoehen fuer stabilere Verbindung unter Last
@@ -1235,11 +1243,13 @@ function Disable-CPUParking {
         powercfg -setacvalueindex SCHEME_CURRENT SUB_PROCESSOR CPMINCORES 100 2>$null
         powercfg -setdcvalueindex SCHEME_CURRENT SUB_PROCESSOR CPMINCORES 100 2>$null
 
-        # Prozessor-Boost-Modus: 2 = Aggressiver Boost
+        # Prozessor-Boost-Modus: 3 = Effizienter aggressiver Boost (verhindert Thermal Throttling durch unkontrolliertes Boosten)
+        # Wert 2 (Aggressiv) kann bei unzureichender Kuehlung massive Frame-Drops durch Thermal Throttling verursachen!
         if ($Config.CPUBoostModus) {
-            powercfg -setacvalueindex SCHEME_CURRENT SUB_PROCESSOR PERFBOOSTMODE 2 2>$null
-            powercfg -setdcvalueindex SCHEME_CURRENT SUB_PROCESSOR PERFBOOSTMODE 2 2>$null
-            Write-OK "Prozessor-Boost-Modus auf 'Aggressiv' gesetzt."
+            powercfg -setacvalueindex SCHEME_CURRENT SUB_PROCESSOR PERFBOOSTMODE 3 2>$null
+            powercfg -setdcvalueindex SCHEME_CURRENT SUB_PROCESSOR PERFBOOSTMODE 3 2>$null
+            Write-OK "Prozessor-Boost-Modus auf 'Effizienter Aggressiver Boost' gesetzt (stabiler als reiner Aggressiv-Modus)."
+            Write-Info "Verhindert Frame-Drops durch unkontrolliertes Boosten / Thermal Throttling."
         }
 
         # Energieplan neu laden damit Aenderungen sofort wirken
@@ -1702,6 +1712,22 @@ function Invoke-UndoOptimizations {
         $nvTweakPath = "HKCU:\Software\NVIDIA Corporation\Global\NVTweak"
         Remove-ItemProperty -Path $nvTweakPath -Name "ShaderDiskCacheMaxSize" -ErrorAction SilentlyContinue
         Write-OK "NVIDIA Shader-Cache-Groesse auf Standard zurueckgesetzt."
+    } catch {}
+
+    # Interrupt Moderation reaktivieren (war auf Adaptive gesetzt)
+    try {
+        $adapters = Get-NetAdapter | Where-Object { $_.Status -eq "Up" }
+        foreach ($adapter in $adapters) {
+            $props = Get-NetAdapterAdvancedProperty -Name $adapter.Name -ErrorAction SilentlyContinue
+            $im = $props | Where-Object { $_.DisplayName -match "Interrupt Moderation" }
+            if ($im) {
+                $imVals = $im.ValidDisplayValues
+                $imTarget = $imVals | Where-Object { $_ -match "Adaptive" } | Select-Object -First 1
+                if (-not $imTarget) { $imTarget = "Enabled" }
+                Set-NetAdapterAdvancedProperty -Name $adapter.Name -DisplayName $im.DisplayName -DisplayValue $imTarget -ErrorAction SilentlyContinue
+            }
+        }
+        Write-OK "Interrupt Moderation auf Standard (Adaptive/Enabled) zurueckgesetzt."
     } catch {}
 
     # LSO reaktivieren
