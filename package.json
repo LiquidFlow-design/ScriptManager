@@ -32,8 +32,10 @@
     "files": [
       "main.js",
       "preload.js",
+      "main/**/*.js",
       "database/db.js",
       "renderer/index.html",
+      "renderer/js/**/*.js",
       "assets/**",
       "node_modules/**"
     ],
@@ -63,9 +65,7 @@
       {
         "from": "lib/",
         "to": "lib/",
-        "filter": [
-          "**/*.ps1"
-        ]
+        "filter": ["**/*.ps1"]
       },
       {
         "from": "node_modules/sql.js/dist/sql-wasm.wasm",
