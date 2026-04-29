@@ -1,6 +1,6 @@
 {
   "name": "ps-script-manager",
-  "version": "2.0.9",
+  "version": "2.0.10",
   "description": "PS Script Manager - PowerShell Script Verwaltung",
   "main": "main.js",
   "author": "Tobias Scherer",
@@ -65,7 +65,9 @@
       {
         "from": "lib/",
         "to": "lib/",
-        "filter": ["**/*.ps1"]
+        "filter": [
+          "**/*.ps1"
+        ]
       },
       {
         "from": "node_modules/sql.js/dist/sql-wasm.wasm",

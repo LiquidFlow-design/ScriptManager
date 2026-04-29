@@ -42,6 +42,7 @@ require('./main/ipc-scripts')  .register(ipcMain);
 require('./main/ipc-chains')   .register(ipcMain);
 require('./main/ipc-scheduler').register(ipcMain);
 require('./main/ipc-system')   .register(ipcMain, { autoUpdater, APP_DATA, LIB_DIR, app });
+require('./main/ipc-api')      .register(ipcMain);
 
 // ── Fenster ──────────────────────────────────────────────────────────────────
 function createWindow() {

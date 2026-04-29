@@ -183,6 +183,28 @@ module.exports = async function createDb(dbPath) {
     `ALTER TABLE logs       ADD COLUMN chain_name TEXT DEFAULT NULL`,
     `ALTER TABLE chain_steps ADD COLUMN warte_typ TEXT NOT NULL DEFAULT 'timer'`,
     `CREATE INDEX IF NOT EXISTS idx_scripts_fav ON scripts(favorit)`,
+    `CREATE TABLE IF NOT EXISTS api_calls (
+      id              INTEGER PRIMARY KEY AUTOINCREMENT,
+      name            TEXT    NOT NULL,
+      beschreibung    TEXT    DEFAULT '',
+      url             TEXT    NOT NULL DEFAULT '',
+      methode         TEXT    NOT NULL DEFAULT 'GET',
+      auth_typ        TEXT    NOT NULL DEFAULT 'none',
+      auth_data       TEXT    DEFAULT NULL,
+      headers         TEXT    DEFAULT NULL,
+      body            TEXT    DEFAULT NULL,
+      script_id       INTEGER DEFAULT NULL,
+      response_modus  TEXT    NOT NULL DEFAULT 'env',
+      response_param  TEXT    NOT NULL DEFAULT 'API_RESPONSE',
+      aktiv           INTEGER NOT NULL DEFAULT 1,
+      letzter_aufruf  TEXT    DEFAULT NULL,
+      letzter_status  TEXT    DEFAULT NULL,
+      erstellt_am     TEXT    NOT NULL,
+      geaendert_am    TEXT    NOT NULL
+    )`,
+    `CREATE INDEX IF NOT EXISTS idx_api_calls_aktiv ON api_calls(aktiv)`,
+    `ALTER TABLE logs ADD COLUMN api_call_id   INTEGER DEFAULT NULL`,
+    `ALTER TABLE logs ADD COLUMN api_call_name TEXT    DEFAULT NULL`,
   ];
   for (const m of migrations) { try { db.run(m); } catch(_) {} }
 
@@ -511,6 +533,77 @@ module.exports = async function createDb(dbPath) {
   const setSetting     = (k,v) => { run(`INSERT INTO settings(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value`,[k,v]); return { success:true }; };
   const getAllSettings  = ()    => Object.fromEntries(all(`SELECT key,value FROM settings`).map(r=>[r.key,r.value]));
 
+  // ════════════════════════════════════════════════════════════════════════
+  //  API CALLS
+  // ════════════════════════════════════════════════════════════════════════
+  const getAllApiCalls     = ()   => all(`SELECT * FROM api_calls ORDER BY name`);
+  const getApiCallById    = (id) => get(`SELECT * FROM api_calls WHERE id=?`,[id]);
+  const getActiveApiCalls = ()   => all(`SELECT * FROM api_calls WHERE aktiv=1`);
+
+  const addApiCall = (a) => {
+    const now = localNow();
+    const id  = insert(
+      `INSERT INTO api_calls
+        (name,beschreibung,url,methode,auth_typ,auth_data,headers,body,
+         script_id,response_modus,response_param,aktiv,erstellt_am,geaendert_am)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,1,?,?)`,
+      [
+        a.name         || '',
+        a.beschreibung || '',
+        a.url          || '',
+        a.methode      || 'GET',
+        a.auth_typ     || 'none',
+        a.auth_data    ? JSON.stringify(a.auth_data)  : null,
+        a.headers      ? JSON.stringify(a.headers)    : null,
+        a.body         || null,
+        a.script_id    || null,
+        a.response_modus  || 'env',
+        a.response_param  || 'API_RESPONSE',
+        now, now,
+      ]
+    );
+    return { success: true, id };
+  };
+
+  const updateApiCall = (a) => {
+    run(
+      `UPDATE api_calls SET
+        name=?,beschreibung=?,url=?,methode=?,auth_typ=?,auth_data=?,
+        headers=?,body=?,script_id=?,response_modus=?,response_param=?,
+        aktiv=?,geaendert_am=?
+       WHERE id=?`,
+      [
+        a.name         || '',
+        a.beschreibung || '',
+        a.url          || '',
+        a.methode      || 'GET',
+        a.auth_typ     || 'none',
+        a.auth_data    ? JSON.stringify(a.auth_data)  : null,
+        a.headers      ? JSON.stringify(a.headers)    : null,
+        a.body         || null,
+        a.script_id    || null,
+        a.response_modus  || 'env',
+        a.response_param  || 'API_RESPONSE',
+        a.aktiv !== undefined ? (a.aktiv ? 1 : 0) : 1,
+        localNow(),
+        a.id,
+      ]
+    );
+    return { success: true };
+  };
+
+  const deleteApiCall    = (id) => { run(`DELETE FROM api_calls WHERE id=?`,[id]); return { success: true }; };
+
+  const updateApiCallRun = (id, status) =>
+    run(`UPDATE api_calls SET letzter_aufruf=?,letzter_status=? WHERE id=?`,[localNow(), status, id]);
+
+  const logApiExecution = (apiCallId, apiCallName, status, output) =>
+    insert(
+      `INSERT INTO logs (api_call_id,api_call_name,script_id,script_name,status,output,gestartet_am)
+       VALUES (?,?,NULL,NULL,?,?,?)`,
+      [apiCallId, apiCallName, status, output || '', localNow()]
+    );
+
   const importFromCsv = (csv) => {
     const lines=csv.replace(/^\uFEFF/,'').split('\n').map(l=>l.trim()).filter(Boolean);
     if(lines.length<2) return { imported:0 };
@@ -545,6 +638,9 @@ module.exports = async function createDb(dbPath) {
     logExecution, getRecentLogs, getLogsByScript, clearLogById, clearLogsByScript, clearAllLogs, clearOldLogs, getLogCount,
     // Settings
     getSetting, setSetting, getAllSettings, importFromCsv,
+    // API Calls
+    getAllApiCalls, getApiCallById, getActiveApiCalls,
+    addApiCall, updateApiCall, deleteApiCall, updateApiCallRun, logApiExecution,
     // Intern (für main.js Permission-Check)
     _hashPassword: hashPassword,
     _verifyPassword: verifyPassword,

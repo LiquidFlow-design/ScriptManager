@@ -1,6 +1,6 @@
 /**
- * preload.js – v3.0
- * NEU: auth, users, perms, audit (Benutzerverwaltung + 2FA)
+ * preload.js – v3.1
+ * NEU: apicalls (HTTP-Requests + Script-Integration)
  */
 const { contextBridge, ipcRenderer } = require('electron');
 
@@ -22,14 +22,12 @@ contextBridge.exposeInMainWorld('api', {
     getSession:     ()                      => ipcRenderer.invoke('auth:getSession'),
     changePassword: (data)                  => ipcRenderer.invoke('auth:changePassword', data),
 
-    // TOTP 2FA
     totp: {
       setup:   ()       => ipcRenderer.invoke('auth:totp:setup'),
       confirm: (data)   => ipcRenderer.invoke('auth:totp:confirm', data),
       disable: (data)   => ipcRenderer.invoke('auth:totp:disable', data),
     },
 
-    // Events vom Main-Prozess
     onSessionExpired: (cb) => {
       const h = (_e,d) => cb(d);
       ipcRenderer.on('auth:sessionExpired', h);
@@ -94,6 +92,17 @@ contextBridge.exposeInMainWorld('api', {
     add:     (s)   => ipcRenderer.invoke('schedules:add', s),
     update:  (s)   => ipcRenderer.invoke('schedules:update', s),
     delete:  (id)  => ipcRenderer.invoke('schedules:delete', id),
+  },
+
+  // ── API Calls ─────────────────────────────────────────────────────────
+  apicalls: {
+    getAll:  ()     => ipcRenderer.invoke('api:getAll'),
+    getById: (id)   => ipcRenderer.invoke('api:getById', id),
+    add:     (data) => ipcRenderer.invoke('api:add', data),
+    update:  (data) => ipcRenderer.invoke('api:update', data),
+    delete:  (id)   => ipcRenderer.invoke('api:delete', id),
+    run:     (id)   => ipcRenderer.invoke('api:run', id),
+    test:    (data) => ipcRenderer.invoke('api:test', data),
   },
 
   // ── Logs ──────────────────────────────────────────────────────────────

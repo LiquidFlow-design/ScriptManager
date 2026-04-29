@@ -9,7 +9,7 @@ async function loadSchedules() {
     <div class="schedule-row">
       <div>
         <div style="font-weight:700;font-size:13px">${escHtml(s.name)}</div>
-        <div style="font-size:11px;color:var(--muted)">${s.target_typ==='chain'?'🔗':'📜'} ${escHtml(getTargetName(s.target_id,s.target_typ))}</div>
+        <div style="font-size:11px;color:var(--muted)">${s.target_typ==='chain'?'🔗':s.target_typ==='api'?'🌐':'📜'} ${escHtml(getTargetName(s.target_id,s.target_typ))}</div>
       </div>
       <span class="sched-badge ${s.typ}">${s.typ}</span>
       <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted)">${formatSchedTime(s)}</span>
@@ -21,9 +21,10 @@ async function loadSchedules() {
     </div>`).join('');
 }
 
-function getTargetName(id,typ) {
-  if(typ==='chain'){ const c=chains.find(x=>x.id===id); return c?c.name:'–'; }
-  const s=scripts.find(x=>x.id===id); return s?s.name:'–';
+function getTargetName(id, typ) {
+  if (typ === 'chain') { const c = chains.find(x=>x.id===id);   return c ? c.name : '–'; }
+  if (typ === 'api')   { const a = apiCalls.find(x=>x.id===id); return a ? a.name : '–'; }
+  const s = scripts.find(x=>x.id===id); return s ? s.name : '–';
 }
 
 function formatSchedTime(s) {
@@ -65,10 +66,16 @@ async function openScheduleModal(id) {
 function closeScheduleModal() { document.getElementById('modal-schedule').classList.remove('open'); }
 
 function updateSchedTargetList() {
-  const typ=document.getElementById('sched-target-typ').value;
-  const sel=document.getElementById('sched-target-id');
-  if(typ==='chain'){ sel.innerHTML=chains.map(c=>`<option value="${c.id}">${escHtml(c.name)}</option>`).join(''); }
-  else { sel.innerHTML=scripts.map(s=>`<option value="${s.id}">${escHtml(s.name)}</option>`).join(''); }
+  const typ = document.getElementById('sched-target-typ').value;
+  const sel = document.getElementById('sched-target-id');
+  if (typ === 'chain') {
+    sel.innerHTML = chains.map(c => `<option value="${c.id}">${escHtml(c.name)}</option>`).join('');
+  } else if (typ === 'api') {
+    sel.innerHTML = (typeof apiCalls !== 'undefined' ? apiCalls : [])
+      .map(a => `<option value="${a.id}">${escHtml(a.name)}</option>`).join('');
+  } else {
+    sel.innerHTML = scripts.map(s => `<option value="${s.id}">${escHtml(s.name)}</option>`).join('');
+  }
 }
 
 function updateSchedForm() {
@@ -105,4 +112,3 @@ async function deleteSchedule(id) {
   showToast('🗑 Zeitplan gelöscht','ok');
   await loadSchedules();
 }
-

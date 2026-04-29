@@ -78,6 +78,31 @@ function checkSchedules() {
         // Direkt ausführen (simuliert ipcMain.invoke intern)
         // Wir rufen die DB-Logik direkt auf statt IPC-Roundtrip
         _runChainDirect(sched.target_id, d);
+      } else if (sched.target_typ === 'api') {
+        // API-Call zeitgesteuert ausführen
+        const { runApiCallDirect, spawnScriptWithResponse } = require('./ipc-api');
+        runApiCallDirect(sched.target_id, d, (line, type) => send('terminal:data', { line, type }))
+          .then(result => {
+            send('terminal:end', { code: result.ok ? 0 : 1, success: result.ok });
+            if (result.ok && result.apiCall?.script_id) {
+              const script = d.getScriptById(result.apiCall.script_id);
+              if (script) {
+                send('terminal:start', { id: script.id, name: `[API→Script] ${script.name}` });
+                spawnScriptWithResponse(
+                  script, script.parameter || '',
+                  result.body,
+                  result.apiCall.response_modus,
+                  result.apiCall.response_param,
+                  (line, type) => send('terminal:data', { line, type }),
+                  (code, out) => {
+                    d.logExecution(script.id, code === 0 ? 'success' : 'error', out);
+                    d.updateLastRun(script.id);
+                    send('terminal:end', { code, success: code === 0 });
+                  }
+                );
+              }
+            }
+          });
       }
     }
   }

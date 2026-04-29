@@ -466,6 +466,7 @@ input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-
       <div class="nav-item active" onclick="showPage('scripts')"><span class="icon">📋</span> Scripts<span class="nav-badge" id="badge-count">0</span></div>
       <div class="nav-item" onclick="showPage('favorites')"><span class="icon">⭐</span> Favoriten<span class="nav-badge" id="badge-favs" style="background:var(--yellow);color:#000">0</span></div>
       <div class="nav-item" onclick="showPage('chains')"><span class="icon">🔗</span> Verkettungen<span class="nav-badge" id="badge-chains">0</span></div>
+      <div class="nav-item" onclick="showPage('apicalls')"><span class="icon">🌐</span> API-Calls<span class="nav-badge" id="badge-api">0</span></div>
       <div class="nav-item" onclick="showPage('scheduler')"><span class="icon">🕐</span> Scheduler</div>
       <div class="nav-item" onclick="showPage('logs')"><span class="icon">📜</span> Logs</div>
       <div class="nav-section">System</div>
@@ -567,6 +568,31 @@ input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-
             </div>
             <div id="chain-detail-panel">
               <div class="detail-empty"><div style="font-size:32px;opacity:.3">👆</div><div>Verkettung auswählen</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+
+      <!-- PAGE: API-CALLS -->
+      <div class="page" id="page-apicalls">
+        <div class="panels" style="grid-template-columns:1fr 380px">
+          <div class="panel">
+            <div class="panel-header">
+              <span class="panel-title">🌐 API-Calls</span>
+              <button class="btn btn-primary btn-sm" onclick="openApiModal()">＋ Neu</button>
+            </div>
+            <div style="display:grid;grid-template-columns:20px 1fr 80px 130px 110px 100px;gap:12px;padding:8px 20px;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;border-bottom:1px solid var(--border);flex-shrink:0">
+              <span></span><span>Name / URL</span><span>Methode</span><span>Auth</span><span>Letzter Aufruf</span><span>Aktionen</span>
+            </div>
+            <div class="script-list" id="api-list">
+              <div class="empty-state"><div class="icon">🌐</div><p>Noch keine API-Calls angelegt.</p></div>
+            </div>
+          </div>
+          <div class="panel">
+            <div class="panel-header"><span class="panel-title">📄 Detail</span></div>
+            <div id="api-detail-panel">
+              <div class="detail-empty"><div style="font-size:32px;opacity:.3">👆</div><div>API-Call auswählen</div></div>
             </div>
           </div>
         </div>
@@ -1408,6 +1434,7 @@ input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-
           <select class="form-input" id="sched-target-typ" onchange="updateSchedTargetList()">
             <option value="script">📜 Script</option>
             <option value="chain">🔗 Verkettung</option>
+            <option value="api">🌐 API-Call</option>
           </select>
         </div>
         <div class="form-group"><label class="form-label">Ziel</label>
@@ -1585,6 +1612,126 @@ input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-
 <script src="js/auth.js"></script>
 <script src="js/settings.js"></script>
 <script src="js/navigation.js"></script>
+<!-- MODAL: API-Call anlegen/bearbeiten -->
+<div class="modal-overlay" id="modal-api">
+  <div class="modal" style="width:640px;max-width:96vw;max-height:90vh;overflow-y:auto">
+    <div class="modal-header">
+      <span class="modal-title" id="api-modal-title">API-Call anlegen</span>
+      <button class="icon-btn" onclick="closeApiModal()" style="font-size:18px;color:var(--muted)">✕</button>
+    </div>
+    <div class="modal-body" style="gap:14px">
+      <input type="hidden" id="api-modal-id">
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Name *</label>
+          <input type="text" class="form-input" id="api-modal-name" placeholder="Wetter-API abrufen">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Beschreibung</label>
+          <input type="text" class="form-input" id="api-modal-desc" placeholder="Was macht dieser Call?">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">URL *</label>
+        <div style="display:flex;gap:8px">
+          <select class="form-input" id="api-modal-methode" onchange="updateBodyVisibility()" style="width:110px;flex-shrink:0">
+            <option>GET</option><option>POST</option><option>PUT</option>
+            <option>PATCH</option><option>DELETE</option><option>HEAD</option>
+          </select>
+          <input type="text" class="form-input" id="api-modal-url" placeholder="https://api.beispiel.de/daten" style="flex:1;font-family:'JetBrains Mono',monospace;font-size:12px">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Authentifizierung</label>
+        <select class="form-input" id="api-modal-auth-typ" onchange="updateAuthForm()">
+          <option value="none">🔓 Kein Auth</option>
+          <option value="basic">🔑 Basic Auth (Username + Passwort)</option>
+          <option value="bearer">🛡 Bearer Token</option>
+          <option value="apikey_header">🗝 API Key — Header</option>
+          <option value="apikey_query">🗝 API Key — Query-Parameter</option>
+        </select>
+      </div>
+      <!-- Auth-Felder -->
+      <div id="api-auth-none" style="display:none"></div>
+      <div id="api-auth-basic" style="display:none;flex-direction:column;gap:10px;background:var(--surface);border-radius:10px;padding:12px 14px">
+        <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;font-weight:700">Basic Auth</div>
+        <div class="form-row">
+          <div class="form-group"><label class="form-label">Benutzername</label><input type="text" class="form-input" id="api-auth-basic-user" placeholder="username" autocomplete="off"></div>
+          <div class="form-group"><label class="form-label">Passwort</label><input type="password" class="form-input" id="api-auth-basic-pw" placeholder="••••••••" autocomplete="new-password"></div>
+        </div>
+      </div>
+      <div id="api-auth-bearer" style="display:none;flex-direction:column;gap:10px;background:var(--surface);border-radius:10px;padding:12px 14px">
+        <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;font-weight:700">Bearer Token</div>
+        <div class="form-group"><label class="form-label">Token</label><input type="text" class="form-input" id="api-auth-bearer-token" placeholder="eyJhbGciOiJ..." style="font-family:'JetBrains Mono',monospace;font-size:12px" autocomplete="off"></div>
+      </div>
+      <div id="api-auth-apikey_header" style="display:none;flex-direction:column;gap:10px;background:var(--surface);border-radius:10px;padding:12px 14px">
+        <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;font-weight:700">API Key — Header</div>
+        <div class="form-row">
+          <div class="form-group"><label class="form-label">Header-Name</label><input type="text" class="form-input" id="api-auth-key-header" placeholder="X-Api-Key" style="font-family:'JetBrains Mono',monospace;font-size:12px"></div>
+          <div class="form-group"><label class="form-label">API Key</label><input type="text" class="form-input" id="api-auth-key-value-header" placeholder="dein-api-key" style="font-family:'JetBrains Mono',monospace;font-size:12px" autocomplete="off"></div>
+        </div>
+      </div>
+      <div id="api-auth-apikey_query" style="display:none;flex-direction:column;gap:10px;background:var(--surface);border-radius:10px;padding:12px 14px">
+        <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;font-weight:700">API Key — Query-Parameter</div>
+        <div class="form-row">
+          <div class="form-group"><label class="form-label">Parameter-Name</label><input type="text" class="form-input" id="api-auth-key-param" placeholder="api_key" style="font-family:'JetBrains Mono',monospace;font-size:12px"></div>
+          <div class="form-group"><label class="form-label">API Key</label><input type="text" class="form-input" id="api-auth-key-value-query" placeholder="dein-api-key" style="font-family:'JetBrains Mono',monospace;font-size:12px" autocomplete="off"></div>
+        </div>
+      </div>
+      <!-- Custom Headers -->
+      <div style="background:var(--surface);border-radius:10px;padding:12px 14px;display:flex;flex-direction:column;gap:8px">
+        <div style="display:flex;align-items:center;gap:8px">
+          <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;font-weight:700;flex:1">Custom Headers</div>
+          <button class="btn btn-ghost btn-sm" onclick="addApiHeader()">＋ Header</button>
+        </div>
+        <div id="api-header-rows" style="display:flex;flex-direction:column;gap:6px"></div>
+      </div>
+      <!-- Body -->
+      <div class="form-group" id="api-body-group" style="display:none">
+        <label class="form-label">Request Body (JSON)</label>
+        <textarea class="form-input" id="api-modal-body" placeholder='{"key": "value"}' style="min-height:80px;font-family:'JetBrains Mono',monospace;font-size:12px;resize:vertical"></textarea>
+      </div>
+      <!-- Test -->
+      <div style="display:flex;align-items:center;gap:10px">
+        <button class="btn btn-ghost btn-sm" id="api-test-btn" onclick="testApiCall()">🔗 Testen</button>
+        <span style="font-size:11px;color:var(--muted)">Testet den Request mit den aktuellen Einstellungen (ohne Speichern)</span>
+      </div>
+      <pre id="api-test-output" style="display:none;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 14px;font-family:'JetBrains Mono',monospace;font-size:11px;white-space:pre-wrap;word-break:break-all;max-height:160px;overflow-y:auto;color:var(--muted)"></pre>
+      <div style="border-top:1px solid var(--border);margin:2px 0"></div>
+      <!-- Script -->
+      <div class="form-group">
+        <label class="form-label">Script nach erfolgreichem Aufruf starten</label>
+        <select class="form-input" id="api-modal-script">
+          <option value="">— Kein Script —</option>
+        </select>
+      </div>
+      <!-- Response-Übergabe -->
+      <div style="background:rgba(124,106,247,.06);border:1px solid rgba(124,106,247,.2);border-radius:10px;padding:12px 14px;display:flex;flex-direction:column;gap:10px">
+        <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;font-weight:700">Response-Übergabe ans Script</div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Methode</label>
+            <select class="form-input" id="api-modal-resp-modus" onchange="updateRespParamLabel()">
+              <option value="env">Umgebungsvariable ($env:...)</option>
+              <option value="param">CLI-Parameter (-ParameterName)</option>
+              <option value="file">JSON-Datei (Pfad als Parameter)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label" id="api-resp-param-label">Variablen-Name</label>
+            <input type="text" class="form-input" id="api-modal-resp-param" placeholder="API_RESPONSE" style="font-family:'JetBrains Mono',monospace;font-size:12px">
+          </div>
+        </div>
+        <div id="api-resp-param-hint" style="font-size:11px;color:var(--muted)">Zugriff im Script: $env:API_RESPONSE</div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeApiModal()">Abbrechen</button>
+      <button class="btn btn-primary" onclick="saveApiCall()">💾 Speichern</button>
+    </div>
+  </div>
+</div>
+
 <script src="js/scripts.js"></script>
 <script src="js/logs.js"></script>
 <script src="js/update.js"></script>
@@ -1592,5 +1739,6 @@ input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-
 <script src="js/chains.js"></script>
 <script src="js/scheduler.js"></script>
 <script src="js/admin.js"></script>
+<script src="js/apicalls.js"></script>
 </body>
 </html>

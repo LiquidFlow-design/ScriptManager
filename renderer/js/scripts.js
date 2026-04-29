@@ -1,6 +1,5 @@
 'use strict';
 
-// ── INIT ─────────────────────────────────────────────────────────────────────
 async function init() {
   loadSavedTheme();
 
@@ -64,6 +63,9 @@ async function appStart() {
   await loadFavorites();
   await loadChains();
   await loadSchedules();
+  await loadApiCalls();
+
+  showPage('scripts');
 
   window.api.scheduler.onFired(d => {
     showToast(`🕐 Geplant gestartet: ${d.scheduleName}`, 'info');
@@ -372,7 +374,8 @@ async function deleteScript(id) {
 
 // ── LIB SCAN ─────────────────────────────────────────────────────────────────
 async function scanLib() {
-  newFiles = await window.api.lib.scanNew();
+  const result = await window.api.lib.scanNew();
+  newFiles = result.newFiles || [];
   const banner = document.getElementById('scan-banner');
   if (newFiles.length > 0) {
     document.getElementById('scan-count').textContent = newFiles.length;

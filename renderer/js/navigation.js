@@ -4,6 +4,7 @@ const pageTitles={
   scripts:  'Scripts <span>// Bibliothek</span>',
   favorites:'Favoriten <span>// Schnellzugriff</span>',
   chains:   'Verkettungen <span>// Script-Pipelines</span>',
+  apicalls: 'API-Calls <span>// HTTP-Aufrufe &amp; Script-Integration</span>',
   scheduler:'Scheduler <span>// Geplante Ausführungen</span>',
   logs:     'Logs <span>// Ausführungsprotokoll</span>',
   update:   'Updates <span>// Releases</span>',
@@ -23,6 +24,7 @@ function showPage(name){
   if(name==='logs')      loadLogs();
   if(name==='favorites') loadFavorites();
   if(name==='chains')    loadChains();
+  if(name==='apicalls')  loadApiCalls();
   if(name==='scheduler') loadSchedules();
   if(name==='profile')   openProfilePage();
   if(name==='admin')     openAdminPage();
@@ -56,7 +58,7 @@ document.addEventListener('DOMContentLoaded',()=>{
 document.addEventListener('keydown', e=>{
   if(e.key==='Escape'){
     closeModal(); closeScanModal(); closeChainModal(); closeScheduleModal();
-    closeUserModal(); closeResetPwModal();
+    closeApiModal(); closeUserModal(); closeResetPwModal();
     if(!document.getElementById('term-close-btn').disabled) closeTerminal();
     if(!document.getElementById('chain-monitor-close').disabled) closeChainMonitor();
     closeEditor();
