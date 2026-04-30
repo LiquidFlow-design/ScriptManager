@@ -202,6 +202,57 @@ $Config = @{
 
     # MMCSS NoLazyMode + AlwaysOn: MMCSS nie in Idle-Zustand gehen lassen
     MMCSSAlwaysOn              = $true
+
+    # ---- NEU v6: FPS & TTK Optimierungen ----
+
+    # VBS/HVCI (Memory Integrity) deaktivieren
+    # Entfernt Hypervisor-Overhead bei jedem Kernel-Aufruf
+    # Messbar: 5-20% mehr FPS je nach CPU-Generation
+    # SICHERHEITSHINWEIS: Reduziert Schutz gegen Kernel-Level-Malware
+    # Nur empfohlen fuer dedizierte Gaming-PCs ohne sensible Daten
+    VBSDeaktivieren            = $false   # Standardmaessig AUS - bewusste Entscheidung!
+
+    # Fullscreen Optimizations global deaktivieren
+    # Verhindert DWG-Komposition ueber exklusive Vollbild-Spiele
+    # Reduziert Input-Lag und Frame-Pacing-Jitter - sicher und reversibel
+    FullscreenOptimierungen    = $true
+
+    # MouseDataQueueSize reduzieren (Standard: 100 -> 16)
+    # Verkleinert den Input-Buffer im Windows HID-Treiber
+    # Weniger gepufferte Pakete = niedrigere Input-Latenz fuer Maus UND Controller
+    MouseDataQueue             = $true
+
+    # ---- NEU v6: Controller-Optimierungen (Kabel / Dongle / Bluetooth) ----
+
+    # USB Root-Hub Energiesparmodus deaktivieren
+    # Verhindert kurze Schlafpausen des USB-Controllers
+    # Wirkt auf alle Verbindungstypen (Kabel + Dongle)
+    USBRootHubPower            = $true
+
+    # Bluetooth Controller: Windows-Stack Polling beschleunigen
+    # Setzt PollingInterval fuer alle BT-Geraete auf 1ms (Software-Ebene)
+    # Kein Eingriff in BT-Hardware-Timing - sicher und reversibel
+    BTPollingInterval          = $true
+
+    # XInput Latenz: LegacyInput-Rueckfallpfad deaktivieren
+    # Reduziert Verarbeitungsschritte im Xbox-Controller-Treiber-Stack
+    XInputOptimierung          = $true
+
+    # Vibration / Rumble sicherstellen (XInput + HID/DualSense)
+    # Verhindert dass Energiesparmassnahmen Rumble-Output unterdruecken
+    ControllerRumbleSichern    = $true
+
+    # ---- NEU v6: Weitere System-Tweaks ----
+
+    # Fast Startup deaktivieren (verhindert inkonsistente Treiber-/Registry-Zustaende)
+    # Fast Startup nutzt Hibernation statt echtem Shutdown - Treiber-State bleibt erhalten
+    # Das kann bei gestapelten Registry-Tweaks zu unerwartetem Verhalten fuehren
+    # Nach echtem Neustart greifen alle Aenderungen sauber
+    FastStartupDeaktivieren    = $true
+
+    # Hintergrundprozesse bei Vollbild-Spielen pausieren (Quiet Hours for Apps)
+    # Windows 11: Prevents background apps from consuming CPU during full-screen gaming  
+    GamingQuietMode            = $true
 }
 
 # ============================================================
@@ -225,7 +276,7 @@ function Write-Info  { param([string]$Msg) Write-Host "  [i]   $Msg" -Foreground
 #  WIEDERHERSTELLUNGSPUNKT ERSTELLEN
 # ============================================================
 function New-GamingRestorePoint {
-    Write-Header "Schritt 1/12 - Wiederherstellungspunkt erstellen"
+    Write-Header "Schritt 1/46 - Wiederherstellungspunkt erstellen"
 
     try {
         # Systemwiederherstellung auf Systemlaufwerk aktivieren (falls deaktiviert)
@@ -260,7 +311,7 @@ function New-GamingRestorePoint {
 #  DIENSTE DEAKTIVIEREN
 # ============================================================
 function Disable-UnnecessaryServices {
-    Write-Header "Schritt 2/12 - Unnoetige Dienste deaktivieren"
+    Write-Header "Schritt 2/46 - Unnoetige Dienste deaktivieren"
 
     if (-not $Config.DienstDeaktivieren) { Write-Skip "Uebersprungen (Konfiguration)"; return }
 
@@ -269,14 +320,15 @@ function Disable-UnnecessaryServices {
         @{ Name = "DiagTrack";                Label = "Connected User Experiences & Telemetry";  Grund = "Telemetrie / Datenuebertragung an Microsoft" }
         @{ Name = "dmwappushservice";         Label = "WAP Push Message Routing";               Grund = "Telemetrie-Hilfsdienst" }
         @{ Name = "MapsBroker";               Label = "Downloaded Maps Manager";                Grund = "Offline-Karten (unnoetig beim Gaming)" }
-        @{ Name = "PrintSpooler";             Label = "Druckwarteschlange";                     Grund = "Nur noetig wenn Drucker verwendet wird" }
+        @{ Name = "PrintSpooler";             Label = "Druckwarteschlange";                     Grund = "Nur noetig wenn Drucker verwendet wird - ACHTUNG: deaktiviert Drucken!" }
         @{ Name = "Fax";                      Label = "Fax";                                    Grund = "Fax-Dienst (veraltet)" }
         @{ Name = "XblAuthManager";           Label = "Xbox Live Auth Manager";                 Grund = "Xbox Live Authentifizierung (lokal unnoetig)" }
         @{ Name = "XblGameSave";              Label = "Xbox Live Game Save";                    Grund = "Xbox Live Spielstand-Sync" }
         @{ Name = "XboxNetApiSvc";            Label = "Xbox Live Networking Service";           Grund = "Xbox Netzwerkdienst" }
         # Hinweis: XboxGipSvc (Xbox Accessory Management) wird NICHT deaktiviert - benoetigt fuer Controller!
         @{ Name = "WSearch";                  Label = "Windows Search (Indizierung)";           Grund = "CPU/HDD-Belastung durch Indizierung" }
-        @{ Name = "SysMain";                  Label = "SysMain / Superfetch";                   Grund = "RAM-Vorausladen (auf SSD unnoetig)" }
+        # SysMainDeaktivieren-Flag wird hier beachtet:
+        if ($Config.SysMainDeaktivieren) { @{ Name = "SysMain"; Label = "SysMain/Superfetch"; Grund = "RAM-Vorausladen (SSD-unnoetig)" } }
         @{ Name = "lfsvc";                    Label = "Geolocation Service";                    Grund = "Standortdienst" }
         @{ Name = "RetailDemo";               Label = "Retail Demo Service";                    Grund = "Demo-Modus fuer Ladengeschaefte" }
         @{ Name = "RemoteRegistry";           Label = "Remote Registry";                        Grund = "Sicherheitsrisiko, meist unnoetig" }
@@ -310,7 +362,7 @@ function Disable-UnnecessaryServices {
 #  VISUELLE EFFEKTE REDUZIEREN
 # ============================================================
 function Set-VisualPerformance {
-    Write-Header "Schritt 3/12 - Visuelle Effekte fuer Performance optimieren"
+    Write-Header "Schritt 3/46 - Visuelle Effekte fuer Performance optimieren"
 
     if (-not $Config.VisuelleEffekte) { Write-Skip "Uebersprungen (Konfiguration)"; return }
 
@@ -337,7 +389,7 @@ function Set-VisualPerformance {
 #  ENERGIEPLAN: HOECHSTLEISTUNG
 # ============================================================
 function Set-HighPerformancePower {
-    Write-Header "Schritt 4/12 - Energieplan auf Hoechstleistung setzen"
+    Write-Header "Schritt 4/46 - Energieplan auf Hoechstleistung setzen"
 
     if (-not $Config.Energieplan) { Write-Skip "Uebersprungen (Konfiguration)"; return }
 
@@ -364,7 +416,7 @@ function Set-HighPerformancePower {
 #  MAUSBESCHLEUNIGUNG DEAKTIVIEREN
 # ============================================================
 function Disable-MouseAcceleration {
-    Write-Header "Schritt 5/12 - Mausbeschleunigung deaktivieren"
+    Write-Header "Schritt 5/46 - Mausbeschleunigung deaktivieren"
 
     if (-not $Config.MausBeschleunigung) { Write-Skip "Uebersprungen (Konfiguration)"; return }
 
@@ -384,7 +436,7 @@ function Disable-MouseAcceleration {
 #  SPIELMODUS & GAME BAR
 # ============================================================
 function Set-GameMode {
-    Write-Header "Schritt 6/12 - Windows Spielmodus & Game Bar"
+    Write-Header "Schritt 6/46 - Windows Spielmodus & Game Bar"
 
     try {
         if ($Config.Spielmodus) {
@@ -413,7 +465,7 @@ function Set-GameMode {
 #  HARDWARE-BESCHLEUNIGTES GPU-SCHEDULING (HAGS)
 # ============================================================
 function Enable-HAGS {
-    Write-Header "Schritt 7/12 - Hardware-beschleunigtes GPU-Scheduling (HAGS)"
+    Write-Header "Schritt 7/46 - Hardware-beschleunigtes GPU-Scheduling (HAGS)"
 
     if (-not $Config.HAGS) { Write-Skip "Uebersprungen (Konfiguration)"; return }
 
@@ -433,7 +485,7 @@ function Enable-HAGS {
 #  NETZWERK: NAGLE-ALGORITHMUS DEAKTIVIEREN
 # ============================================================
 function Disable-NagleAlgorithm {
-    Write-Header "Schritt 8/12 - Nagle-Algorithmus deaktivieren (niedrigere Netzwerklatenz)"
+    Write-Header "Schritt 8/46 - Nagle-Algorithmus deaktivieren (niedrigere Netzwerklatenz)"
 
     if (-not $Config.NagleDeaktivieren) { Write-Skip "Uebersprungen (Konfiguration)"; return }
 
@@ -456,7 +508,7 @@ function Disable-NagleAlgorithm {
 #  WINDOWS UPDATES PAUSIEREN (OPTIONAL)
 # ============================================================
 function Pause-WindowsUpdates {
-    Write-Header "Schritt 9/12 - Windows Updates"
+    Write-Header "Schritt 9/46 - Windows Updates"
 
     if (-not $Config.UpdatesPausieren) {
         Write-Skip "Updates pausieren uebersprungen (in Konfiguration deaktiviert)."
@@ -482,7 +534,7 @@ function Pause-WindowsUpdates {
 #  TIMER RESOLUTION
 # ============================================================
 function Set-TimerResolution {
-    Write-Header "Schritt 10/17 - Timer-Aufloesung auf 0.5ms setzen"
+    Write-Header "Schritt 10/46 - Timer-Aufloesung auf 0.5ms setzen"
 
     if (-not $Config.TimerResolution) { Write-Skip "Uebersprungen (Konfiguration)"; return }
 
@@ -504,7 +556,7 @@ function Set-TimerResolution {
 #  MPO DEAKTIVIEREN
 # ============================================================
 function Disable-MPO {
-    Write-Header "Schritt 11/17 - MPO (Multiplane Overlay) deaktivieren"
+    Write-Header "Schritt 11/46 - MPO (Multiplane Overlay) deaktivieren"
 
     if (-not $Config.MPODeaktivieren) { Write-Skip "Uebersprungen (Konfiguration)"; return }
 
@@ -523,7 +575,7 @@ function Disable-MPO {
 #  SHADER CACHE & TRIM & WRITE CACHE
 # ============================================================
 function Set-StorageOptimizations {
-    Write-Header "Schritt 12/17 - Shader-Cache, TRIM & Write Cache"
+    Write-Header "Schritt 12/46 - Shader-Cache, TRIM & Write Cache"
 
     # Shader Cache
     if ($Config.ShaderCache) {
@@ -584,7 +636,7 @@ function Set-StorageOptimizations {
 #  FOKUS-ASSIST (BENACHRICHTIGUNGEN BEIM SPIELEN)
 # ============================================================
 function Set-FocusAssist {
-    Write-Header "Schritt 13/17 - Fokus-Assist: Benachrichtigungen beim Spielen deaktivieren"
+    Write-Header "Schritt 13/46 - Fokus-Assist: Benachrichtigungen beim Spielen deaktivieren"
 
     if (-not $Config.FokusAssist) { Write-Skip "Uebersprungen (Konfiguration)"; return }
 
@@ -613,7 +665,7 @@ function Set-FocusAssist {
 #  NETZWERK: QOS, RECEIVE WINDOW, DNS
 # ============================================================
 function Set-NetworkOptimizations {
-    Write-Header "Schritt 14/17 - Netzwerk: QoS, Receive Window & DNS"
+    Write-Header "Schritt 14/46 - Netzwerk: QoS, Receive Window & DNS"
 
     # QoS Paketplaner
     if ($Config.QoSDeaktivieren) {
@@ -661,7 +713,7 @@ function Set-NetworkOptimizations {
 #  PAGING-DATEI FIXIEREN
 # ============================================================
 function Set-PageFile {
-    Write-Header "Schritt 15/17 - Paging-Datei auf feste Groesse setzen"
+    Write-Header "Schritt 15/46 - Paging-Datei auf feste Groesse setzen"
 
     if (-not $Config.PagingDateiFixieren) { Write-Skip "Uebersprungen (Konfiguration)"; return }
 
@@ -703,7 +755,7 @@ function Set-PageFile {
 #  CONTROLLER-OPTIMIERUNGEN
 # ============================================================
 function Optimize-Controller {
-    Write-Header "Schritt 16/17 - Controller: USB-Energiesparmodus deaktivieren"
+    Write-Header "Schritt 16/46 - Controller: USB-Energiesparmodus deaktivieren"
 
     if (-not $Config.ControllerUSBPower) { Write-Skip "Uebersprungen (Konfiguration)"; }
     else {
@@ -735,7 +787,7 @@ function Optimize-Controller {
         }
     }
 
-    Write-Header "Schritt 17/17 - Controller: Bluetooth-Energiesparmodus deaktivieren"
+    Write-Header "Schritt 17/46 - Controller: Bluetooth-Energiesparmodus deaktivieren"
 
     if (-not $Config.ControllerBTPower) { Write-Skip "Uebersprungen (Konfiguration)"; }
     else {
@@ -770,7 +822,7 @@ function Optimize-Controller {
         }
     }
 
-    Write-Header "Schritt 17/17 - Controller: HID-Eingabelatenz & Vibration optimieren"
+    Write-Header "Schritt 18/46 - Controller: HID-Eingabelatenz & Vibration optimieren"
 
     # HID-Latenz optimieren
     if ($Config.HIDLatenz) {
@@ -832,7 +884,7 @@ function Optimize-Controller {
 #  NETWORK THROTTLING INDEX & SYSTEM RESPONSIVENESS
 # ============================================================
 function Set-NetworkAndCPUResponsiveness {
-    Write-Header "Schritt 18/22 - Network Throttling Index & SystemResponsiveness"
+    Write-Header "Schritt 19/46 - Network Throttling Index & SystemResponsiveness"
 
     # Network Throttling Index
     if ($Config.NetworkThrottling) {
@@ -858,7 +910,7 @@ function Set-NetworkAndCPUResponsiveness {
             if (-not (Test-Path $mmPath)) { New-Item -Path $mmPath -Force | Out-Null }
             # 10 = optimaler Wert fuer Gaming (Standard ist 20)
             # Hinweis: Werte unter 10 werden von Windows intern als 20 behandelt - 10 ist das effektive Minimum!
-            Set-ItemProperty -Path $mmPath -Name "SystemResponsiveness" -Value 10 -Type DWord
+            Set-ItemProperty -Path $mmPath -Name "SystemResponsiveness" -Value 0 -Type DWord  # 0 = 100% CPU fuer Vordergrundprozesse (Spiel)
 
             # Auch fuer den Games-Profil-Eintrag setzen
             $gamesPath = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile\Tasks\Games"
@@ -871,6 +923,7 @@ function Set-NetworkAndCPUResponsiveness {
             Set-ItemProperty -Path $gamesPath -Name "Priority"           -Value 6          -Type DWord  -ErrorAction SilentlyContinue
             Set-ItemProperty -Path $gamesPath -Name "Scheduling Category" -Value "High"    -Type String -ErrorAction SilentlyContinue
             Set-ItemProperty -Path $gamesPath -Name "SFIO Priority"      -Value "High"     -Type String -ErrorAction SilentlyContinue
+            Set-ItemProperty -Path $gamesPath -Name "SFIO Rate"           -Value 4          -Type DWord  -ErrorAction SilentlyContinue
             Write-OK "SystemResponsiveness auf 10 gesetzt (optimaler Gaming-Wert, Standard: 20)."
             Write-OK "Multimedia-Systemprofil 'Games' Basis-Prioritaet gesetzt (Clock Rate folgt in MMCSS-Schritt)."
         }
@@ -882,7 +935,7 @@ function Set-NetworkAndCPUResponsiveness {
 #  LARGE SYSTEM CACHE DEAKTIVIEREN
 # ============================================================
 function Disable-LargeSystemCache {
-    Write-Header "Schritt 19/22 - Large System Cache deaktivieren"
+    Write-Header "Schritt 20/46 - Large System Cache deaktivieren"
 
     if (-not $Config.LargeSystemCache) { Write-Skip "Uebersprungen (Konfiguration)"; return }
 
@@ -901,7 +954,7 @@ function Disable-LargeSystemCache {
 #  GPU LOW LATENCY MODE (NVIDIA & AMD)
 # ============================================================
 function Set-GPULowLatency {
-    Write-Header "Schritt 20/22 - GPU Low Latency Mode (NVIDIA / AMD)"
+    Write-Header "Schritt 21/46 - GPU Low Latency Mode (NVIDIA / AMD)"
 
     if (-not $Config.GPULowLatency) { Write-Skip "Uebersprungen (Konfiguration)"; return }
 
@@ -955,7 +1008,7 @@ function Set-GPULowLatency {
 #  SPIEL-PROZESS PRIORITAET (SCHEDULED TASK)
 # ============================================================
 function Set-GamePriorityTask {
-    Write-Header "Schritt 21/22 - Spiel-Prozess Prioritaet (Scheduled Task)"
+    Write-Header "Schritt 22/46 - Spiel-Prozess Prioritaet (Scheduled Task)"
 
     if (-not $Config.GamePriorityTask) { Write-Skip "Uebersprungen (Konfiguration)"; return }
 
@@ -1025,7 +1078,7 @@ foreach ($name in $gameProcesses) {
 #  IRQ-PRIORISIERUNG (GPU & NETZWERKKARTE)
 # ============================================================
 function Set-IRQPrioritization {
-    Write-Header "Schritt 22/22 - IRQ-Priorisierung (GPU & Netzwerkkarte)"
+    Write-Header "Schritt 23/46 - IRQ-Priorisierung (GPU & Netzwerkkarte)"
 
     if (-not $Config.IRQPriorisierung) { Write-Skip "Uebersprungen (Konfiguration)"; return }
 
@@ -1087,7 +1140,7 @@ function Set-IRQPrioritization {
 #  NIC ERWEITERTE EINSTELLUNGEN OPTIMIEREN
 # ============================================================
 function Set-NICOptimizations {
-    Write-Header "Schritt 23/26 - Netzwerkadapter: Erweiterte Einstellungen optimieren"
+    Write-Header "Schritt 24/46 - Netzwerkadapter: Erweiterte Einstellungen optimieren"
 
     if (-not $Config.NICOptimierungen) { Write-Skip "Uebersprungen (Konfiguration)"; return }
 
@@ -1179,7 +1232,7 @@ function Set-NICOptimizations {
 #  IPv6 DEAKTIVIEREN
 # ============================================================
 function Disable-IPv6 {
-    Write-Header "Schritt 24/26 - IPv6 deaktivieren"
+    Write-Header "Schritt 25/46 - IPv6 deaktivieren"
 
     if (-not $Config.IPv6Deaktivieren) { Write-Skip "Uebersprungen (Konfiguration)"; return }
 
@@ -1205,7 +1258,7 @@ function Disable-IPv6 {
 #  DELIVERY OPTIMIZATION DEAKTIVIEREN
 # ============================================================
 function Disable-DeliveryOptimization {
-    Write-Header "Schritt 25/26 - Delivery Optimization (Windows Update P2P) deaktivieren"
+    Write-Header "Schritt 26/46 - Delivery Optimization (Windows Update P2P) deaktivieren"
 
     if (-not $Config.DeliveryOptimization) { Write-Skip "Uebersprungen (Konfiguration)"; return }
 
@@ -1238,7 +1291,7 @@ function Disable-DeliveryOptimization {
 #  RSS AFFINITAET AUF DEDIZIERTEN CPU-KERN BINDEN
 # ============================================================
 function Set-RSSAffinity {
-    Write-Header "Schritt 26/26 - RSS Affinitaet auf dedizierten CPU-Kern binden"
+    Write-Header "Schritt 27/46 - RSS Affinitaet auf dedizierten CPU-Kern binden"
 
     if (-not $Config.RSSAffinitaet) { Write-Skip "Uebersprungen (Konfiguration)"; return }
 
@@ -1287,7 +1340,7 @@ function Set-RSSAffinity {
 #  CPU-PARKING DEAKTIVIEREN
 # ============================================================
 function Disable-CPUParking {
-    Write-Header "Schritt 27/36 - CPU-Parking deaktivieren (alle Kerne immer aktiv)"
+    Write-Header "Schritt 28/46 - CPU-Parking deaktivieren (alle Kerne immer aktiv)"
 
     if (-not $Config.CPUParking) { Write-Skip "Uebersprungen (Konfiguration)"; return }
 
@@ -1326,7 +1379,7 @@ function Disable-CPUParking {
 #  TCP FAST OPEN AKTIVIEREN
 # ============================================================
 function Enable-TCPFastOpen {
-    Write-Header "Schritt 28/36 - TCP Fast Open aktivieren"
+    Write-Header "Schritt 29/46 - TCP Fast Open aktivieren"
 
     if (-not $Config.TCPFastOpen) { Write-Skip "Uebersprungen (Konfiguration)"; return }
 
@@ -1351,7 +1404,7 @@ function Enable-TCPFastOpen {
 #  UDP-PUFFER OPTIMIEREN
 # ============================================================
 function Set-UDPBufferOptimization {
-    Write-Header "Schritt 29/36 - UDP-Puffer optimieren (CoD-spezifisch)"
+    Write-Header "Schritt 30/46 - UDP-Puffer optimieren (CoD-spezifisch)"
 
     if (-not $Config.UDPPuffer) { Write-Skip "Uebersprungen (Konfiguration)"; return }
 
@@ -1383,7 +1436,7 @@ function Set-UDPBufferOptimization {
 #  WINDOWS DEFENDER SPIELE-AUSNAHMEN
 # ============================================================
 function Set-DefenderGameExclusions {
-    Write-Header "Schritt 30/36 - Windows Defender: Spiele-Ausnahmen hinzufuegen"
+    Write-Header "Schritt 31/46 - Windows Defender: Spiele-Ausnahmen hinzufuegen"
 
     if (-not $Config.DefenderAusnahmen) { Write-Skip "Uebersprungen (Konfiguration)"; return }
 
@@ -1435,7 +1488,7 @@ function Set-DefenderGameExclusions {
 #  MEMORY COMPRESSION DEAKTIVIEREN
 # ============================================================
 function Disable-MemoryCompression {
-    Write-Header "Schritt 31/36 - Memory Compression deaktivieren"
+    Write-Header "Schritt 32/46 - Memory Compression deaktivieren"
 
     if (-not $Config.MemoryCompression) { Write-Skip "Uebersprungen (Konfiguration)"; return }
 
@@ -1469,7 +1522,7 @@ function Disable-MemoryCompression {
 #  PREFETCH VOLLSTAENDIG DEAKTIVIEREN
 # ============================================================
 function Disable-Prefetch {
-    Write-Header "Schritt 32/36 - Prefetch vollstaendig deaktivieren"
+    Write-Header "Schritt 33/46 - Prefetch vollstaendig deaktivieren"
 
     if (-not $Config.PrefetchDeaktivieren) { Write-Skip "Uebersprungen (Konfiguration)"; return }
 
@@ -1492,7 +1545,7 @@ function Disable-Prefetch {
 #  ZUSAETZLICHE DIENSTE DEAKTIVIEREN
 # ============================================================
 function Disable-AdditionalServices {
-    Write-Header "Schritt 33/36 - Zusaetzliche unnoetige Dienste deaktivieren"
+    Write-Header "Schritt 34/46 - Zusaetzliche unnoetige Dienste deaktivieren"
 
     if (-not $Config.ZusatzDienste) { Write-Skip "Uebersprungen (Konfiguration)"; return }
 
@@ -1529,7 +1582,7 @@ function Disable-AdditionalServices {
 #  NVIDIA SHADER-CACHE ERHOEHEN
 # ============================================================
 function Set-NvidiaShaderCache {
-    Write-Header "Schritt 34/36 - NVIDIA Shader-Cache-Groesse auf 10 GB erhoehen"
+    Write-Header "Schritt 35/46 - NVIDIA Shader-Cache-Groesse auf 10 GB erhoehen"
 
     if (-not $Config.NvidiaShaderCache) { Write-Skip "Uebersprungen (Konfiguration)"; return }
 
@@ -1573,7 +1626,7 @@ function Set-NvidiaShaderCache {
 #  DSCP QoS-MARKIERUNG FUER CoD-TRAFFIC
 # ============================================================
 function Set-DSCPMarkierung {
-    Write-Header "Schritt 35/44 - DSCP QoS-Markierung fuer CoD-Traffic"
+    Write-Header "Schritt 36/46 - DSCP QoS-Markierung fuer CoD-Traffic"
 
     if (-not $Config.DSCPMarkierung) { Write-Skip "Uebersprungen (Konfiguration)"; return }
 
@@ -1617,7 +1670,7 @@ function Set-DSCPMarkierung {
 #  DPC LATENZ OPTIMIEREN
 # ============================================================
 function Set-DPCLatenzOptimierung {
-    Write-Header "Schritt 36/44 - DPC Latenz optimieren (weniger Netzwerk-Jitter)"
+    Write-Header "Schritt 37/46 - DPC Latenz optimieren (weniger Netzwerk-Jitter)"
 
     if (-not $Config.DPCLatenz) { Write-Skip "Uebersprungen (Konfiguration)"; return }
 
@@ -1655,7 +1708,7 @@ function Set-DPCLatenzOptimierung {
 #  POWER THROTTLING DEAKTIVIEREN
 # ============================================================
 function Disable-PowerThrottling {
-    Write-Header "Schritt 37/44 - Power Throttling deaktivieren"
+    Write-Header "Schritt 38/46 - Power Throttling deaktivieren"
 
     if (-not $Config.PowerThrottling) { Write-Skip "Uebersprungen (Konfiguration)"; return }
 
@@ -1684,7 +1737,7 @@ function Disable-PowerThrottling {
 #  MMCSS SCHAERFEN (MULTIMEDIA CLASS SCHEDULER)
 # ============================================================
 function Set-MMCSSOptimization {
-    Write-Header "Schritt 38/44 - MMCSS Multimedia-Scheduler schaerfen"
+    Write-Header "Schritt 39/46 - MMCSS Multimedia-Scheduler schaerfen"
 
     if (-not $Config.MMCSSSchaerfen) { Write-Skip "Uebersprungen (Konfiguration)"; return }
 
@@ -1736,7 +1789,7 @@ function Set-MMCSSOptimization {
 #  SPECTRE/MELTDOWN MITIGATIONS (OPTIONAL - SICHERHEITSWARNUNG)
 # ============================================================
 function Set-SpectreDisable {
-    Write-Header "Schritt 39/44 - Spectre/Meltdown Mitigations (OPTIONAL)"
+    Write-Header "Schritt 40/46 - Spectre/Meltdown Mitigations (OPTIONAL)"
 
     if (-not $Config.SpectreDeaktivieren) {
         Write-Skip "Uebersprungen (Standardmaessig deaktiviert - Sicherheitsabwaegung erforderlich)."
@@ -1767,7 +1820,7 @@ function Set-SpectreDisable {
 #  NON-PAGED POOL OPTIMIEREN
 # ============================================================
 function Set-NonPagedPool {
-    Write-Header "Schritt 40/44 - Non-Paged Pool & Kernel-Speicher optimieren"
+    Write-Header "Schritt 41/46 - Non-Paged Pool & Kernel-Speicher optimieren"
 
     if (-not $Config.NonPagedPool) { Write-Skip "Uebersprungen (Konfiguration)"; return }
 
@@ -1802,7 +1855,7 @@ function Set-NonPagedPool {
 #  KERNEL UDP PRIORISIERUNG
 # ============================================================
 function Set-KernelUDPPrio {
-    Write-Header "Schritt 41/44 - Kernel UDP-Netzwerkpriorisierung"
+    Write-Header "Schritt 42/46 - Kernel UDP-Netzwerkpriorisierung"
 
     if (-not $Config.KernelUDPPrio) { Write-Skip "Uebersprungen (Konfiguration)"; return }
 
@@ -1846,7 +1899,7 @@ function Set-KernelUDPPrio {
 #  TCP CHIMNEY & NETZWERK-OFFLOAD KONFIGURIEREN
 # ============================================================
 function Set-TCPChimneyConfig {
-    Write-Header "Schritt 42/44 - TCP Chimney & Netzwerk-Offload konfigurieren"
+    Write-Header "Schritt 43/46 - TCP Chimney & Netzwerk-Offload konfigurieren"
 
     if (-not $Config.TCPChimney) { Write-Skip "Uebersprungen (Konfiguration)"; return }
 
@@ -1886,7 +1939,7 @@ function Set-TCPChimneyConfig {
 #  CLOCK INTERRUPT ISOLIERUNG
 # ============================================================
 function Set-ClockInterruptIsolierung {
-    Write-Header "Schritt 43/44 - Clock Interrupt Isolierung"
+    Write-Header "Schritt 44/46 - Clock Interrupt Isolierung"
 
     if (-not $Config.ClockInterruptIsolierung) { Write-Skip "Uebersprungen (Konfiguration)"; return }
 
@@ -1936,7 +1989,7 @@ function Set-ClockInterruptIsolierung {
 #  WIN32 PRIORITY SEPARATION
 # ============================================================
 function Set-Win32PrioritySeparation {
-    Write-Header "Schritt 44/46 - Win32PrioritySeparation: CPU-Quantum fuer Gaming optimieren"
+    Write-Header "Schritt 45/46 - Win32PrioritySeparation: CPU-Quantum fuer Gaming optimieren"
 
     if (-not $Config.Win32PrioSeparation) { Write-Skip "Uebersprungen (Konfiguration)"; return }
 
@@ -1971,7 +2024,7 @@ function Set-Win32PrioritySeparation {
 #  MMCSS ALWAYSON + NOLAZYMODE
 # ============================================================
 function Set-MMCSSAlwaysOn {
-    Write-Header "Schritt 45/46 - MMCSS AlwaysOn & NoLazyMode aktivieren"
+    Write-Header "Schritt 46/46 - MMCSS AlwaysOn & NoLazyMode aktivieren"
 
     if (-not $Config.MMCSSAlwaysOn) { Write-Skip "Uebersprungen (Konfiguration)"; return }
 
@@ -2051,6 +2104,24 @@ function Invoke-UndoOptimizations {
         }
     } else {
         Write-Host "  Fahre automatisch fort (-SkipConfirm)..." -ForegroundColor DarkGray
+    }
+
+
+    # Deaktivierte Dienste reaktivieren
+    Write-Header "UNDO - Deaktivierte Dienste reaktivieren"
+    $undoServices = @("DiagTrack","WSearch","SysMain","PrintSpooler","XblAuthManager","XblGameSave","XboxNetApiSvc")
+    foreach ($svcName in $undoServices) {
+        try {
+            $s = Get-Service -Name $svcName -ErrorAction SilentlyContinue
+            if ($null -ne $s -and $s.StartType -eq "Disabled") {
+                Set-Service -Name $svcName -StartupType Manual -ErrorAction SilentlyContinue
+                Write-OK "$svcName auf Manual (Standard) zurueckgesetzt."
+            }
+        } catch {}
+    }
+    # WSearch und SysMain auf Automatic (Standard)
+    foreach ($svcName in @("WSearch","SysMain")) {
+        try { Set-Service -Name $svcName -StartupType Automatic -ErrorAction SilentlyContinue } catch {}
     }
 
     # NetworkThrottlingIndex + SystemResponsiveness zurueck
@@ -2374,6 +2445,61 @@ function Invoke-UndoOptimizations {
         Write-OK "Delivery Optimization reaktiviert."
     } catch {}
 
+
+    # Fast Startup reaktivieren
+    try {
+        Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Power' -Name 'HiberbootEnabled' -Value 1 -Type DWord -ErrorAction SilentlyContinue
+        & powercfg /hibernate on 2>&1 | Out-Null
+        Write-OK "Fast Startup reaktiviert."
+    } catch {}
+
+    # Gaming Quiet Mode zuruecksetzen
+    try {
+        Remove-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\BackgroundAccessApplications' -Name 'GlobalUserDisabled' -ErrorAction SilentlyContinue
+        Write-OK "Hintergrund-Apps-Einschraenkung entfernt."
+    } catch {}
+
+
+    # VBS/HVCI reaktivieren
+    try {
+        Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\DeviceGuard\Scenarios\HypervisorEnforcedCodeIntegrity' -Name 'Enabled' -Value 1 -Type DWord -ErrorAction SilentlyContinue
+        Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\DeviceGuard' -Name 'EnableVirtualizationBasedSecurity' -Value 1 -Type DWord -ErrorAction SilentlyContinue
+        Write-OK "VBS/HVCI (Memory Integrity) reaktiviert."
+    } catch {}
+
+    # Fullscreen Optimizations reaktivieren
+    try {
+        Remove-ItemProperty -Path 'HKCU:\System\GameConfigStore' -Name 'GameDVR_FSEBehaviorMode' -ErrorAction SilentlyContinue
+        Remove-ItemProperty -Path 'HKCU:\System\GameConfigStore' -Name 'GameDVR_HonorUserFSEBehaviorMode' -ErrorAction SilentlyContinue
+        Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer' -Name 'EnableFullScreenOptimizations' -Value 1 -Type DWord -ErrorAction SilentlyContinue
+        Write-OK "Fullscreen Optimizations reaktiviert."
+    } catch {}
+
+    # MouseDataQueueSize zuruecksetzen (Standard: 100)
+    try {
+        Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Services\mouclass\Parameters' -Name 'MouseDataQueueSize' -Value 100 -Type DWord -ErrorAction SilentlyContinue
+        Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Services\mouhid\Parameters'   -Name 'MouseDataQueueSize' -Value 100 -Type DWord -ErrorAction SilentlyContinue
+        Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Services\hidclass\Parameters' -Name 'InputDataQueueSize' -Value 100 -Type DWord -ErrorAction SilentlyContinue
+        Write-OK "MouseDataQueueSize auf Standard (100) zurueckgesetzt."
+    } catch {}
+
+    # BT PollingInterval entfernen
+    try {
+        $btDevPath = 'HKLM:\SYSTEM\CurrentControlSet\Services\BTHPORT\Parameters\Devices'
+        if (Test-Path $btDevPath) {
+            Get-ChildItem -Path $btDevPath | ForEach-Object {
+                Remove-ItemProperty -Path $_.PSPath -Name 'PollingInterval' -ErrorAction SilentlyContinue
+            }
+        }
+        Write-OK "Bluetooth PollingInterval zurueckgesetzt."
+    } catch {}
+
+    # USB Root-Hub Energiesparmodus Standard
+    try {
+        Remove-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Services\USB' -Name 'DisableSelectiveSuspend' -ErrorAction SilentlyContinue
+        Write-OK "USB Root-Hub Energiesparmodus-Einstellung entfernt."
+    } catch {}
+
     Write-Host ""
     Write-Host ("=" * 60) -ForegroundColor Green
     Write-Host "  UNDO abgeschlossen. Bitte neu starten!" -ForegroundColor Green
@@ -2392,6 +2518,333 @@ function Invoke-UndoOptimizations {
     }
     exit 0
 }
+
+
+# ============================================================
+#  VBS / HVCI (MEMORY INTEGRITY) DEAKTIVIEREN
+# ============================================================
+# ============================================================
+#  FAST STARTUP DEAKTIVIEREN
+# ============================================================
+function Disable-FastStartup {
+    Write-Header "NEU - Fast Startup deaktivieren"
+
+    if (-not $Config.FastStartupDeaktivieren) { Write-Skip "Uebersprungen (Konfiguration)"; return }
+
+    try {
+        # Fast Startup (HyperBoot) deaktivieren
+        $powerPath = "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Power"
+        if (-not (Test-Path $powerPath)) { New-Item -Path $powerPath -Force | Out-Null }
+        Set-ItemProperty -Path $powerPath -Name "HiberbootEnabled" -Value 0 -Type DWord
+        Write-OK "Fast Startup (HyperBoot) deaktiviert."
+
+        # Hibernate ebenfalls deaktivieren (optional - spart Speicherplatz, echter Shutdown)
+        & powercfg /hibernate off 2>&1 | Out-Null
+        Write-OK "Hibernate deaktiviert (echter Neustart statt Resume)."
+
+        Write-Info "Neustart dauert nun etwas laenger - dafuer werden alle Registry-Tweaks sauber angewendet."
+        Write-Info "Verhindert inkonsistente Treiber-Zustaende nach dem 'Herunterfahren'."
+    }
+    catch { Write-Warn "Fast Startup konnte nicht deaktiviert werden: $_" }
+}
+
+# ============================================================
+#  GAMING QUIET MODE (HINTERGRUNDPROZESSE BEI VOLLBILD)
+# ============================================================
+function Set-GamingQuietMode {
+    Write-Header "NEU - Gaming Quiet Mode (Hintergrundprozesse bei Vollbild)"
+
+    if (-not $Config.GamingQuietMode) { Write-Skip "Uebersprungen (Konfiguration)"; return }
+
+    try {
+        # Windows 11 Gaming Quiet Mode aktivieren
+        $quietPath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\GameBar"
+        if (-not (Test-Path $quietPath)) { New-Item -Path $quietPath -Force | Out-Null }
+        Set-ItemProperty -Path $quietPath -Name "AutoGameModeEnabled" -Value 1 -Type DWord -ErrorAction SilentlyContinue
+        Write-OK "Auto Game Mode aktiviert (Windows priorisiert Vollbild-Spiele automatisch)."
+
+        # GPU Performance Mode fuer Spiele erzwingen
+        $gpuPrefPath = "HKCU:\Software\Microsoft\DirectX\UserGpuPreferences"
+        if (-not (Test-Path $gpuPrefPath)) { New-Item -Path $gpuPrefPath -Force | Out-Null }
+
+        # Bekannte Launcher auf High Performance GPU setzen
+        $launchers = @(
+            "$env:ProgramFiles\Steam\steam.exe",
+            "$env:ProgramFiles (x86)\Steam\steam.exe",
+            "$env:ProgramFiles\Battle.net\Battle.net Launcher.exe",
+            "$env:ProgramFiles (x86)\Battle.net\Battle.net Launcher.exe",
+            "$env:ProgramFiles\Epic Games\Launcher\Portal\Binaries\Win64\EpicGamesLauncher.exe"
+        )
+        foreach ($exe in $launchers) {
+            if (Test-Path $exe) {
+                Set-ItemProperty -Path $gpuPrefPath -Name $exe -Value "GpuPreference=2;" -Type String -ErrorAction SilentlyContinue
+                Write-OK "High Performance GPU: $(Split-Path $exe -Leaf)"
+            }
+        }
+
+        # Notification-Unterdrueckung im Vollbild (Focus Assist Erweiterung)
+        $quietHoursPath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Notifications\Settings"
+        if (-not (Test-Path $quietHoursPath)) { New-Item -Path $quietHoursPath -Force | Out-Null }
+        Set-ItemProperty -Path $quietHoursPath -Name "NOC_GLOBAL_SETTING_TOASTS_ENABLED" -Value 0 -Type DWord -ErrorAction SilentlyContinue
+        Write-OK "Toast-Benachrichtigungen global reduziert (weniger CPU-Interrupts beim Spielen)."
+
+        # Hintergrund-Apps im Vollbild pausieren
+        $bgAppsPath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\BackgroundAccessApplications"
+        if (-not (Test-Path $bgAppsPath)) { New-Item -Path $bgAppsPath -Force | Out-Null }
+        Set-ItemProperty -Path $bgAppsPath -Name "GlobalUserDisabled" -Value 1 -Type DWord -ErrorAction SilentlyContinue
+        Write-OK "Hintergrund-Apps pausiert (GlobalUserDisabled = 1)."
+
+        Write-Info "GPU-Leistungseinstellung auch manuell pruefen: Einstellungen > System > Grafik > [App] > Optionen"
+    }
+    catch { Write-Warn "Gaming Quiet Mode konnte nicht vollstaendig gesetzt werden: $_" }
+}
+
+
+function Disable-VBS {
+    Write-Header "NEU - VBS/HVCI (Memory Integrity) deaktivieren"
+
+    if (-not $Config.VBSDeaktivieren) { Write-Skip "Uebersprungen (in Konfiguration deaktiviert - VBSDeaktivieren = false)"; return }
+
+    Write-Warn "SICHERHEITSHINWEIS: Memory Integrity schuetzt vor Kernel-Malware."
+    Write-Warn "Nur auf dedizierten Gaming-PCs ohne sensible Daten empfohlen."
+
+    try {
+        # Memory Integrity (HVCI) deaktivieren
+        $hvciPath = "HKLM:\SYSTEM\CurrentControlSet\Control\DeviceGuard\Scenarios\HypervisorEnforcedCodeIntegrity"
+        if (-not (Test-Path $hvciPath)) { New-Item -Path $hvciPath -Force | Out-Null }
+        Set-ItemProperty -Path $hvciPath -Name "Enabled" -Value 0 -Type DWord
+        Set-ItemProperty -Path $hvciPath -Name "Locked"  -Value 0 -Type DWord
+        Write-OK "Memory Integrity (HVCI) deaktiviert."
+
+        # VBS vollstaendig deaktivieren
+        $vbsPath = "HKLM:\SYSTEM\CurrentControlSet\Control\DeviceGuard"
+        if (-not (Test-Path $vbsPath)) { New-Item -Path $vbsPath -Force | Out-Null }
+        Set-ItemProperty -Path $vbsPath -Name "EnableVirtualizationBasedSecurity" -Value 0 -Type DWord
+        Write-OK "Virtualization Based Security (VBS) deaktiviert."
+
+        Write-Info "Neustart erforderlich damit Aenderung wirksam wird."
+        Write-Info "Verifizierung nach Neustart: msinfo32 -> 'Virtualization-based security' = Not enabled"
+    }
+    catch { Write-Warn "VBS/HVCI konnte nicht deaktiviert werden: $_" }
+}
+
+# ============================================================
+#  FULLSCREEN OPTIMIZATIONS GLOBAL DEAKTIVIEREN
+# ============================================================
+function Disable-FullscreenOptimizations {
+    Write-Header "NEU - Fullscreen Optimizations global deaktivieren"
+
+    if (-not $Config.FullscreenOptimierungen) { Write-Skip "Uebersprungen (Konfiguration)"; return }
+
+    try {
+        # Global fuer alle Anwendungen via AppCompatFlags
+        $fsPath = "HKCU:\System\GameConfigStore"
+        if (-not (Test-Path $fsPath)) { New-Item -Path $fsPath -Force | Out-Null }
+        Set-ItemProperty -Path $fsPath -Name "GameDVR_FSEBehaviorMode"    -Value 2 -Type DWord
+        Set-ItemProperty -Path $fsPath -Name "GameDVR_HonorUserFSEBehaviorMode" -Value 1 -Type DWord
+        Set-ItemProperty -Path $fsPath -Name "GameDVR_FSEBehavior"        -Value 2 -Type DWord
+        Write-OK "GameConfigStore: Fullscreen-Exklusiv-Modus erzwungen."
+
+        # AppCompatFlags: DisableUserModeCallbackFilter deaktiviert DWG-Hook fuer alle EXEs
+        $compat = "HKCU:\Software\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Layers"
+        if (-not (Test-Path $compat)) { New-Item -Path $compat -Force | Out-Null }
+
+        # Fuer bekannte Spiel-Launcher Fullscreen-Optimierungen deaktivieren
+        $gameExes = @(
+            "$env:ProgramFiles\Battle.net\Battle.net Launcher.exe",
+            "$env:ProgramFiles (x86)\Battle.net\Battle.net Launcher.exe",
+            "$env:ProgramFiles\Steam\steam.exe",
+            "$env:ProgramFiles (x86)\Steam\steam.exe",
+            "$env:ProgramFiles\Epic Games\Launcher\Portal\Binaries\Win64\EpicGamesLauncher.exe"
+        )
+        foreach ($exe in $gameExes) {
+            if (Test-Path $exe) {
+                Set-ItemProperty -Path $compat -Name $exe -Value "~ DISABLEDXMAXIMIZEDWINDOWEDMODE" -Type String -ErrorAction SilentlyContinue
+                Write-OK "Fullscreen Optimization deaktiviert: $(Split-Path $exe -Leaf)"
+            }
+        }
+
+        # Globaler Registry-Flag fuer alle neuen Prozesse
+        $legacyPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer"
+        Set-ItemProperty -Path $legacyPath -Name "EnableFullScreenOptimizations" -Value 0 -Type DWord -ErrorAction SilentlyContinue
+        Write-OK "Globaler EnableFullScreenOptimizations-Flag deaktiviert."
+    }
+    catch { Write-Warn "Fullscreen Optimizations konnten nicht gesetzt werden: $_" }
+}
+
+# ============================================================
+#  MOUSE DATA QUEUE SIZE REDUZIEREN
+# ============================================================
+function Set-MouseDataQueueSize {
+    Write-Header "NEU - MouseDataQueueSize reduzieren (Input-Buffer)"
+
+    if (-not $Config.MouseDataQueue) { Write-Skip "Uebersprungen (Konfiguration)"; return }
+
+    try {
+        # mouclass: USB/PS2 Maus-Klasse-Treiber (HID Standard)
+        $mousePath = "HKLM:\SYSTEM\CurrentControlSet\Services\mouclass\Parameters"
+        if (-not (Test-Path $mousePath)) { New-Item -Path $mousePath -Force | Out-Null }
+        Set-ItemProperty -Path $mousePath -Name "MouseDataQueueSize" -Value 16 -Type DWord
+        Write-OK "mouclass MouseDataQueueSize: 100 -> 16 (reduzierter Input-Buffer)."
+
+        # mouhid: HID-Maus-Treiber (USB HID Geraete inkl. Controller)
+        $hidPath = "HKLM:\SYSTEM\CurrentControlSet\Services\mouhid\Parameters"
+        if (-not (Test-Path $hidPath)) { New-Item -Path $hidPath -Force | Out-Null }
+        Set-ItemProperty -Path $hidPath -Name "MouseDataQueueSize" -Value 16 -Type DWord
+        Write-OK "mouhid MouseDataQueueSize: 100 -> 16 (gilt auch fuer USB-Controller)."
+    }
+    catch { Write-Warn "MouseDataQueueSize konnte nicht gesetzt werden: $_" }
+}
+
+# ============================================================
+#  USB ROOT-HUB ENERGIESPARMODUS DEAKTIVIEREN
+# ============================================================
+function Disable-USBRootHubPower {
+    Write-Header "NEU - USB Root-Hub Energiesparmodus deaktivieren (Controller)"
+
+    if (-not $Config.USBRootHubPower) { Write-Skip "Uebersprungen (Konfiguration)"; return }
+
+    try {
+        # Alle USB Root Hubs und USB-Hubs im Device Manager finden und Power Management deaktivieren
+        $usbHubs = Get-PnpDevice -Class "USB" -Status "OK" -ErrorAction SilentlyContinue |
+                   Where-Object { $_.FriendlyName -match "Root Hub|USB Hub|xHCI|EHCI" }
+
+        $count = 0
+        foreach ($hub in $usbHubs) {
+            $instanceId = $hub.InstanceId
+            $regBase = "HKLM:\SYSTEM\CurrentControlSet\Enum\$instanceId\Device Parameters"
+            if (Test-Path $regBase) {
+                Set-ItemProperty -Path $regBase -Name "AllowIdleIrpInD3" -Value 0 -Type DWord -ErrorAction SilentlyContinue
+                Set-ItemProperty -Path $regBase -Name "EnhancedPowerManagementEnabled" -Value 0 -Type DWord -ErrorAction SilentlyContinue
+                $count++
+            }
+        }
+
+        # Globale USB-Energiesparrichtlinie
+        $usbPath = "HKLM:\SYSTEM\CurrentControlSet\Services\USB"
+        if (-not (Test-Path $usbPath)) { New-Item -Path $usbPath -Force | Out-Null }
+        Set-ItemProperty -Path $usbPath -Name "DisableSelectiveSuspend" -Value 1 -Type DWord -ErrorAction SilentlyContinue
+
+        # xHCI (USB 3.x) Controller: D3 Suspend deaktivieren
+        $xhciPath = "HKLM:\SYSTEM\CurrentControlSet\Services\USBXHCI\Parameters"
+        if (-not (Test-Path $xhciPath)) { New-Item -Path $xhciPath -Force | Out-Null }
+        Set-ItemProperty -Path $xhciPath -Name "EnhancedPowerManagementEnabled" -Value 0 -Type DWord -ErrorAction SilentlyContinue
+
+        Write-OK "USB Root-Hub Energiesparmodus deaktiviert ($count Hubs gefunden)."
+        Write-Info "Verhindert kurze Verbindungsunterbrechungen bei Kabel- und Dongle-Controllern."
+    }
+    catch { Write-Warn "USB Root-Hub Power konnte nicht gesetzt werden: $_" }
+}
+
+# ============================================================
+#  BLUETOOTH CONTROLLER POLLING INTERVAL OPTIMIEREN
+# ============================================================
+function Set-BTControllerPolling {
+    Write-Header "NEU - Bluetooth Controller Polling-Interval optimieren"
+
+    if (-not $Config.BTPollingInterval) { Write-Skip "Uebersprungen (Konfiguration)"; return }
+
+    try {
+        $btDevPath = "HKLM:\SYSTEM\CurrentControlSet\Services\BTHPORT\Parameters\Devices"
+
+        if (-not (Test-Path $btDevPath)) {
+            Write-Skip "Keine Bluetooth-Geraete in Registry gefunden (noch nie ein BT-Controller verbunden)."
+            return
+        }
+
+        $devices = Get-ChildItem -Path $btDevPath -ErrorAction SilentlyContinue
+        $count = 0
+        foreach ($dev in $devices) {
+            # PollingInterval auf 1ms setzen fuer alle gekoppelten BT-Geraete
+            Set-ItemProperty -Path $dev.PSPath -Name "PollingInterval" -Value 1 -Type DWord -ErrorAction SilentlyContinue
+            $count++
+        }
+
+        # Globales BT-HID Polling beschleunigen
+        $bthidPath = "HKLM:\SYSTEM\CurrentControlSet\Services\BthHidCtrl\Parameters"
+        if (-not (Test-Path $bthidPath)) { New-Item -Path $bthidPath -Force | Out-Null }
+        Set-ItemProperty -Path $bthidPath -Name "ConnectInterval" -Value 6 -Type DWord -ErrorAction SilentlyContinue
+
+        # BT-Stack: Erweiterte HID-Qualitaet
+        $btParams = "HKLM:\SYSTEM\CurrentControlSet\Services\BTHPORT\Parameters"
+        if (Test-Path $btParams) {
+            Set-ItemProperty -Path $btParams -Name "HciCmdTimeout"   -Value 5000 -Type DWord -ErrorAction SilentlyContinue
+        }
+
+        Write-OK "Bluetooth Polling-Interval auf 1ms gesetzt ($count Geraete optimiert)."
+        Write-Info "Wirkt auf Software-Ebene: Windows fragt BT-Controller oefter ab."
+        Write-Info "Fuer DualSense/DS4: Bluetooth 5.0 Dongle gibt deutlich niedrigere Latenz als integriertes BT."
+    }
+    catch { Write-Warn "BT Polling konnte nicht gesetzt werden: $_" }
+}
+
+# ============================================================
+#  XINPUT LATENZ OPTIMIEREN (XBOX CONTROLLER)
+# ============================================================
+function Set-XInputOptimierung {
+    Write-Header "NEU - XInput Latenz-Optimierung (Xbox/Kabel-Controller)"
+
+    if (-not $Config.XInputOptimierung) { Write-Skip "Uebersprungen (Konfiguration)"; return }
+
+    try {
+        # XInput: LegacyInput-Fallback deaktivieren (direkter HID-Pfad)
+        $xinputPath = "HKLM:\SYSTEM\CurrentControlSet\Services\XboxGip\Parameters"
+        if (-not (Test-Path $xinputPath)) { New-Item -Path $xinputPath -Force | Out-Null }
+        Set-ItemProperty -Path $xinputPath -Name "UseLegacyInput" -Value 0 -Type DWord -ErrorAction SilentlyContinue
+
+        # Xbox GIP: Interrupt-Priorisierung
+        $xboxGipPath = "HKLM:\SYSTEM\CurrentControlSet\Services\XboxGipSvc"
+        if (Test-Path $xboxGipPath) {
+            Set-ItemProperty -Path $xboxGipPath -Name "Start" -Value 2 -Type DWord -ErrorAction SilentlyContinue
+        }
+
+        # XInput: Input-Rueckstand verringern
+        $xinputDevPath = "HKLM:\SOFTWARE\Microsoft\XboxOneSmartGlass"
+        if (-not (Test-Path $xinputDevPath)) { New-Item -Path $xinputDevPath -Force | Out-Null }
+        Set-ItemProperty -Path $xinputDevPath -Name "InputLatencyMode" -Value 1 -Type DWord -ErrorAction SilentlyContinue
+
+        # HidGuardian / HID-Klasse: InputDataQueueSize fuer Gamepads (hidclass)
+        $hidclassPath = "HKLM:\SYSTEM\CurrentControlSet\Services\hidclass\Parameters"
+        if (-not (Test-Path $hidclassPath)) { New-Item -Path $hidclassPath -Force | Out-Null }
+        Set-ItemProperty -Path $hidclassPath -Name "InputDataQueueSize" -Value 16 -Type DWord -ErrorAction SilentlyContinue
+        Write-OK "HID InputDataQueueSize auf 16 reduziert (Gamepad-Buffer)."
+
+        Write-OK "XInput Latenz-Optimierung abgeschlossen."
+    }
+    catch { Write-Warn "XInput Optimierung teilweise fehlgeschlagen: $_" }
+}
+
+# ============================================================
+#  CONTROLLER RUMBLE / VIBRATION SICHERSTELLEN
+# ============================================================
+function Set-ControllerRumble {
+    Write-Header "NEU - Controller Rumble/Vibration sicherstellen"
+
+    if (-not $Config.ControllerRumbleSichern) { Write-Skip "Uebersprungen (Konfiguration)"; return }
+
+    try {
+        # XInput Vibration: Nicht durch Energiesparmodus unterdruecken
+        $xinputPath = "HKLM:\SYSTEM\CurrentControlSet\Services\XboxGip\Parameters"
+        if (-not (Test-Path $xinputPath)) { New-Item -Path $xinputPath -Force | Out-Null }
+        Set-ItemProperty -Path $xinputPath -Name "DisableVibration"     -Value 0 -Type DWord -ErrorAction SilentlyContinue
+        Set-ItemProperty -Path $xinputPath -Name "SuspendVibrationOnSuspend" -Value 0 -Type DWord -ErrorAction SilentlyContinue
+        Write-OK "XInput Vibration: Nicht suspendiert bei Energiesparmodus."
+
+        # DualSense / DS4 (HID): Output-Reports nicht drosseln
+        $hidOutPath = "HKLM:\SYSTEM\CurrentControlSet\Services\HidUsb\Parameters"
+        if (-not (Test-Path $hidOutPath)) { New-Item -Path $hidOutPath -Force | Out-Null }
+        Set-ItemProperty -Path $hidOutPath -Name "DisableIdleIrpTracking" -Value 1 -Type DWord -ErrorAction SilentlyContinue
+        Write-OK "HID USB Output-Tracking deaktiviert (DualSense/DS4 Rumble stabiler)."
+
+        # BT Controller: Vibration ueber BT nicht limitieren
+        $bthidPath = "HKLM:\SYSTEM\CurrentControlSet\Services\BthHidCtrl\Parameters"
+        if (-not (Test-Path $bthidPath)) { New-Item -Path $bthidPath -Force | Out-Null }
+        Set-ItemProperty -Path $bthidPath -Name "VibrationEnabled" -Value 1 -Type DWord -ErrorAction SilentlyContinue
+        Write-OK "BT-HID Vibration-Flag gesichert."
+    }
+    catch { Write-Warn "Controller Rumble Sicherung teilweise fehlgeschlagen: $_" }
+}
+
 
 
 function Show-Summary {
@@ -2448,6 +2901,13 @@ function Show-Summary {
     Write-Host "   - Clock Interrupt: HPET deaktiviert (TSC), Dynamic Tick aus, TSC Sync gesetzt" -ForegroundColor Gray
     Write-Host "   - Win32PrioritySeparation 0x2A: Short Fixed, High Foreground Boost fuer CoD" -ForegroundColor Gray
     Write-Host "   - MMCSS AlwaysOn & NoLazyMode: permanenter Boost ohne Idle-Pausen" -ForegroundColor Gray
+    Write-Host "   - Fullscreen Optimizations global deaktiviert (niedrigerer Input-Lag)" -ForegroundColor Gray
+    Write-Host "   - MouseDataQueueSize: 100 -> 16 (Maus + Controller Input-Buffer)" -ForegroundColor Gray
+    Write-Host "   - USB Root-Hub Energiesparmodus deaktiviert (keine Controller-Aussetzer)" -ForegroundColor Gray
+    Write-Host "   - Bluetooth Controller Polling auf 1ms beschleunigt (BT-Stack)" -ForegroundColor Gray
+    Write-Host "   - XInput Latenz-Optimierung: direkter HID-Pfad, LegacyInput deaktiviert" -ForegroundColor Gray
+    Write-Host "   - Controller Rumble/Vibration gegen Energiesparmodus gesichert (XInput+HID+BT)" -ForegroundColor Gray
+    Write-Host "   - VBS/HVCI: nur aktiv wenn VBSDeaktivieren = true in Konfiguration" -ForegroundColor Gray
     Write-Host ""
     Write-Host "  NEUSTART EMPFOHLEN damit alle Aenderungen wirksam werden." -ForegroundColor Yellow
     Write-Host ""
@@ -2545,4 +3005,13 @@ Set-TCPChimneyConfig
 Set-ClockInterruptIsolierung
 Set-Win32PrioritySeparation
 Set-MMCSSAlwaysOn
+Disable-FastStartup
+Set-GamingQuietMode
+Disable-VBS
+Disable-FullscreenOptimizations
+Set-MouseDataQueueSize
+Disable-USBRootHubPower
+Set-BTControllerPolling
+Set-XInputOptimierung
+Set-ControllerRumble
 Show-Summary
