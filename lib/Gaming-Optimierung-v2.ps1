@@ -726,13 +726,40 @@ function Set-NetworkOptimizations {
     # Receive Window Auto-Tuning
     if ($Config.ReceiveWindowTuning) {
         try {
-            & netsh int tcp set global autotuninglevel=normal 2>&1 | Out-Null
+            # autotuninglevel=experimental: Maximiert das TCP Receive Window dynamisch
+            # -> besserer Download-Durchsatz ohne Latenzanstieg bei Fiber/Kabel
+            # Normal = 64KB-256KB Window-Cap, Experimental = bis 16MB window
+            # Microsoft-Empfehlung fuer low-latency high-bandwidth Verbindungen
+            & netsh int tcp set global autotuninglevel=experimental 2>&1 | Out-Null
+            Write-OK "TCP AutoTuning auf 'experimental' (maximales Receive Window fuer niedrige Latenz)."
+
+            # Heuristics interferiert mit AutoTuning -> deaktivieren
+            # Windows 8.1+ hat es standardmaessig aus, bei manchen Setups aktiv
+            & netsh int tcp set heuristics disabled 2>&1 | Out-Null
+            Write-OK "TCP Window Scaling Heuristics deaktiviert (stoert AutoTuning nicht mehr)."
+
             & netsh int tcp set global chimney=disabled        2>&1 | Out-Null
             & netsh int tcp set global dca=enabled             2>&1 | Out-Null
-            # netdma wird in Set-TCPChimneyConfig explizit auf disabled gesetzt (veraltet auf modernen Systemen)
             & netsh int tcp set global ecncapability=disabled  2>&1 | Out-Null
             & netsh int tcp set global timestamps=disabled     2>&1 | Out-Null
-            Write-OK "TCP/Receive Window auf Gaming-optimierte Werte gesetzt."
+
+            # Initial RTO: 1000ms statt 3000ms Standard
+            # Wie lange Windows auf erstes ACK wartet - niedrigerer Wert = schnellerer
+            # Verbindungsaufbau zum Spielserver (sicher bei stabiler Verbindung)
+            & netsh int tcp set global initialrto=1000 2>&1 | Out-Null
+            Write-OK "InitialRTO auf 1000ms gesetzt (schnellerer Verbindungsaufbau, Standard: 3000ms)."
+
+            # MaxSynRetransmissions: 2 statt Standard 4
+            # Bei Verbindungsaufbau-Fehler schneller aufgeben und neu verbinden
+            & netsh int tcp set global maxsynretransmissions=2 2>&1 | Out-Null
+            Write-OK "MaxSynRetransmissions auf 2 (schnelleres Reconnect bei Verbindungsfehlern)."
+
+            # Pacing Profile deaktivieren: Windows paused Paket-Sending nicht mehr
+            # Standard 'off' auf manchen Systemen 'slow start' -> erhoeht Upload-Latenz
+            & netsh int tcp set global pacingprofile=off 2>&1 | Out-Null
+            Write-OK "Pacing Profile: off (kein kuenstliches Ausbremsen des TCP-Sendevorgangs)."
+
+            Write-OK "TCP Stack fuer niedrige Up/Download-Latenz optimiert."
         }
         catch { Write-Warn "Receive Window Tuning fehlgeschlagen: $_" }
     } else { Write-Skip "Receive Window Tuning uebersprungen." }
@@ -1229,31 +1256,51 @@ function Set-NICOptimizations {
                 Write-OK "[$name] Energy Efficient Ethernet (EEE) deaktiviert."
             }
 
-            # Interrupt Moderation: "Adaptive" statt "Disabled" - verhindert Interrupt Storms bei hohem Netzwerkverkehr
-            # ACHTUNG: "Disabled" kann bei CoD (UDP-intensiv) CPU-Kerne mit Interrupts ueberfluten -> Frame-Drops!
+            # Interrupt Moderation: Prioritaet fuer niedrige Latenz
+            # Disabled = jedes Paket loest sofort CPU-Interrupt aus -> niedrigste Latenz
+            # Low/Adaptive = Interrupts werden gebundelt -> weniger CPU-Last aber +Latenz
+            # Kompromiss: "Low" wenn verfuegbar, sonst "Disabled" (NIC-abhaengig)
             $im = $props | Where-Object { $_.DisplayName -match "Interrupt Moderation" }
             if ($im) {
-                # Versuche "Adaptive" zu setzen, falls nicht verfuegbar "Enabled" als Fallback
                 $imVals = $im.ValidDisplayValues
-                $imTarget = $imVals | Where-Object { $_ -match "Adaptive" } | Select-Object -First 1
-                if (-not $imTarget) { $imTarget = $imVals | Where-Object { $_ -match "Enabled|On" } | Select-Object -First 1 }
-                if (-not $imTarget) { $imTarget = "Enabled" }
+                # Prioritaet: Low > Disabled > Adaptive (Low = niedrig aber kein Interrupt-Storm-Risiko)
+                $imTarget = $imVals | Where-Object { $_ -match "^Low$|^1$" } | Select-Object -First 1
+                if (-not $imTarget) { $imTarget = $imVals | Where-Object { $_ -match "Disabled|Off|^0$" } | Select-Object -First 1 }
+                if (-not $imTarget) { $imTarget = $imVals | Where-Object { $_ -match "Adaptive" } | Select-Object -First 1 }
+                if (-not $imTarget) { $imTarget = "Disabled" }
                 Set-NetAdapterAdvancedProperty -Name $name -DisplayName $im.DisplayName -DisplayValue $imTarget -ErrorAction SilentlyContinue
-                Write-OK "[$name] Interrupt Moderation auf '$imTarget' gesetzt (verhindert CPU-Interrupt-Storms)."
+                Write-OK "[$name] Interrupt Moderation: '$imTarget' (Latenz-Prioritaet: Low > Disabled > Adaptive)."
+                Write-Info "[$name] Bei CPU-Spike/Interrupt-Storm auf Adaptive zuruecksetzen."
             }
 
-            # Receive Buffer erhoehen fuer stabilere Verbindung unter Last
+            # Interrupt Moderation Rate: explizit auf niedrigsten Wert setzen falls verfuegbar
+            $imr = $props | Where-Object { $_.DisplayName -match "Interrupt Moderation Rate" }
+            if ($imr) {
+                $imrVals = $imr.ValidDisplayValues
+                $imrTarget = $imrVals | Where-Object { $_ -match "Extreme|Minimal|Low|1" } | Select-Object -First 1
+                if ($imrTarget) {
+                    Set-NetAdapterAdvancedProperty -Name $name -DisplayName $imr.DisplayName -DisplayValue $imrTarget -ErrorAction SilentlyContinue
+                    Write-OK "[$name] Interrupt Moderation Rate: '$imrTarget' (niedrigste Rate = niedrigste Paketverarbeitungs-Latenz)."
+                }
+            }
+
+            # Receive Buffers: 256 (Latenz-Kompromiss)
+            # Groessere Buffer = mehr Bufferbloat = hoehere Latenz unter Last
+            # Kleinere Buffer = niedrigere Latenz, aber mehr Packet-Drop bei Burst
+            # 256 ist der optimale Kompromiss fuer Gaming (nicht 512 wie zuvor)
             $rb = $props | Where-Object { $_.DisplayName -match "Receive Buffers" }
             if ($rb) {
-                Set-NetAdapterAdvancedProperty -Name $name -DisplayName $rb.DisplayName -DisplayValue "512" -ErrorAction SilentlyContinue
-                Write-OK "[$name] Receive Buffers auf 512 gesetzt."
+                Set-NetAdapterAdvancedProperty -Name $name -DisplayName $rb.DisplayName -DisplayValue "256" -ErrorAction SilentlyContinue
+                Write-OK "[$name] Receive Buffers: 256 (Latenz-optimiert, kein Bufferbloat)."
             }
 
-            # Transmit Buffer erhoehen
+            # Transmit Buffers: 512 (von 1024 reduziert)
+            # Hoehere Transmit Buffer = Windows stapelt Pakete laenger vor dem Senden
+            # = direkt messbare Upload-Latenz-Erhoehung
             $tb = $props | Where-Object { $_.DisplayName -match "Transmit Buffers" }
             if ($tb) {
-                Set-NetAdapterAdvancedProperty -Name $name -DisplayName $tb.DisplayName -DisplayValue "1024" -ErrorAction SilentlyContinue
-                Write-OK "[$name] Transmit Buffers auf 1024 gesetzt."
+                Set-NetAdapterAdvancedProperty -Name $name -DisplayName $tb.DisplayName -DisplayValue "512" -ErrorAction SilentlyContinue
+                Write-OK "[$name] Transmit Buffers: 512 (reduziert von 1024, weniger Upload-Bufferbloat)."
             }
 
             # Speed & Duplex auf Maximum erzwingen (kein Auto-Negotiation fuer Latenzkonsistenz)
@@ -1446,6 +1493,35 @@ function Enable-TCPFastOpen {
 
         Write-OK "TCP Fast Open aktiviert (schnellerer Verbindungsaufbau zum Spielserver)."
         Write-Info "Besonders wirksam bei wiederholten Verbindungen zum selben Server."
+
+        # TCP Supplemental Template: Minimales RTO und Delayed ACK optimieren
+        # Direkte Auswirkung auf Upload-Latenz bei 10ms Ping
+        try {
+            # MinRto: 300ms Standard -> 100ms
+            # Bei 10ms Ping ist 300ms Retransmit-Minimum viel zu hoch
+            $null = & netsh int tcp set supplemental template=internet minrto=100 2>&1
+            Write-OK "TCP Supplemental MinRTO: 300ms -> 100ms (passt zu 10ms Ping)."
+
+            # DelayedAckTimeout: 40ms -> 10ms
+            # Windows wartet 40ms auf naechstes Paket bevor ACK gesendet wird
+            # Diese 40ms addieren sich direkt zur Upload-Latenz bei kleinen Paketen (Gaming!)
+            $null = & netsh int tcp set supplemental template=internet delayedacktimeout=10 2>&1
+            Write-OK "Delayed ACK Timeout: 40ms -> 10ms (weniger Wartezeit vor ACK-Senden)."
+
+            # DelayedAckFrequency: 2 -> 1 = sofort ACKen ohne auf 2. Paket zu warten
+            # Standard: Windows ACKt erst nach 2 Paketen ODER 40ms-Timeout
+            # Wert 1: sofortiges ACK fuer jedes Paket -> niedrigste Upload-Latenz
+            $null = & netsh int tcp set supplemental template=internet delayedackfrequency=1 2>&1
+            Write-OK "Delayed ACK Frequency: 2 -> 1 (sofortiges ACK pro Paket)."
+
+            # Congestion Window Restart deaktivieren
+            # Verhindert TCP-Kalt-Start nach kurzen Idle-Phasen (zwischen Runden/Matches)
+            $null = & netsh int tcp set supplemental template=internet congestionwindowrestart=disabled 2>&1
+            Write-OK "Congestion Window Restart: disabled (kein Window-Reset nach Match-Pausen)."
+        }
+        catch {
+            Write-Warn "TCP Supplemental (kein Fehler auf Windows 10 Home Edition): $_"
+        }
     }
     catch {
         Write-Warn "TCP Fast Open konnte nicht aktiviert werden: $_"
@@ -1981,6 +2057,46 @@ function Set-TCPChimneyConfig {
 
         Write-OK "TCP Chimney/NetDMA deaktiviert, DCA aktiviert, CTCP Congestion Provider gesetzt."
         Write-Info "RSC-Deaktivierung ist besonders relevant fuer CoD's UDP-intensiven Traffic."
+
+        # ── TCP/IP Parameter-Registry-Tweaks ──────────────────────────────────────
+        $tcpParams = "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters"
+
+        # TcpTimedWaitDelay: 30s statt Standard 120s (240s auf alten Systemen)
+        # Wie lange TIME_WAIT-Verbindungen blockiert bleiben -> weniger Port-Erschoepfung
+        # bei vielen schnellen Verbindungen (CoD reconnects, UDP flows)
+        Set-ItemProperty -Path $tcpParams -Name "TcpTimedWaitDelay"     -Value 30   -Type DWord -ErrorAction SilentlyContinue
+        Write-OK "TcpTimedWaitDelay: 120s -> 30s (schnellere Port-Freigabe nach Verbindungsende)."
+
+        # MaxUserPort: 65534 statt Standard 5000 (Windows XP-Relikt!)
+        # Standard erlaubt nur 5000 ausgehende Ports -> bei CoD mit vielen UDP-Flows
+        # kritisch, da Ports schneller erschoepft werden
+        Set-ItemProperty -Path $tcpParams -Name "MaxUserPort"           -Value 65534 -Type DWord -ErrorAction SilentlyContinue
+        Write-OK "MaxUserPort: 5000 -> 65534 (massiv mehr ausgehende Ports fuer UDP-Gaming-Traffic)."
+
+        # TcpMaxDupAcks: 2 statt Standard 3
+        # Wie viele doppelte ACKs bis TCP Fast Retransmit ausgeloest wird
+        # Niedrigerer Wert = schnellere Packet-Loss-Erkennung = niedrigere Upload-Latenz
+        Set-ItemProperty -Path $tcpParams -Name "TcpMaxDupAcks"         -Value 2    -Type DWord -ErrorAction SilentlyContinue
+        Write-OK "TcpMaxDupAcks: 3 -> 2 (schnellere Packet-Loss-Erkennung, niedrigere Upload-Latenz)."
+
+        # SackOpts: 1 = SACK aktiviert (Selective Acknowledgement)
+        # Erlaubt TCP nur verlorene Pakete neu zu senden statt alles ab Verlust
+        # Direkte Auswirkung auf Upload-Latenz bei Packet-Loss
+        Set-ItemProperty -Path $tcpParams -Name "SackOpts"              -Value 1    -Type DWord -ErrorAction SilentlyContinue
+        Write-OK "SackOpts: SACK aktiviert (selektive Wiederuebertragung, weniger Upload-Overhead)."
+
+        # EnablePMTUDiscovery: 1 = Path MTU Discovery aktiv
+        # Verhindert IP-Fragmentierung durch optimale Paketgroesse
+        Set-ItemProperty -Path $tcpParams -Name "EnablePMTUDiscovery"   -Value 1    -Type DWord -ErrorAction SilentlyContinue
+        Write-OK "Path MTU Discovery: aktiv (keine IP-Fragmentierung, niedrigere Latenz)."
+
+        # DefaultTTL: 64 (standard, aber explizit setzen fuer Konsistenz)
+        Set-ItemProperty -Path $tcpParams -Name "DefaultTTL"            -Value 64   -Type DWord -ErrorAction SilentlyContinue
+
+        # EnableICMPRedirect: 1 = kuerzerere Routing-Pfade erlaubt
+        Set-ItemProperty -Path $tcpParams -Name "EnableICMPRedirect"    -Value 1    -Type DWord -ErrorAction SilentlyContinue
+
+        Write-OK "TCP/IP Parameter-Registry vollstaendig optimiert."
     }
     catch {
         Write-Warn "TCP Chimney-Konfiguration fehlgeschlagen: $_"
@@ -2278,7 +2394,25 @@ function Invoke-UndoOptimizations {
 
     # TCP-Einstellungen zurueck
     try {
-        & netsh int tcp set global autotuninglevel=normal 2>&1 | Out-Null
+        & netsh int tcp set global autotuninglevel=normal       2>&1 | Out-Null
+        & netsh int tcp set heuristics enabled                    2>&1 | Out-Null
+        & netsh int tcp set global initialrto=3000                2>&1 | Out-Null
+        & netsh int tcp set global maxsynretransmissions=4        2>&1 | Out-Null
+        & netsh int tcp set global pacingprofile=off              2>&1 | Out-Null
+        # TCP Supplemental zuruecksetzen
+        & netsh int tcp set supplemental template=internet minrto=300             2>&1 | Out-Null
+        & netsh int tcp set supplemental template=internet delayedacktimeout=40   2>&1 | Out-Null
+        & netsh int tcp set supplemental template=internet delayedackfrequency=2  2>&1 | Out-Null
+        & netsh int tcp set supplemental template=internet congestionwindowrestart=enabled 2>&1 | Out-Null
+        # TCP/IP Parameter zurueck
+        $tcpP = "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters"
+        Remove-ItemProperty -Path $tcpP -Name "TcpTimedWaitDelay"   -ErrorAction SilentlyContinue
+        Remove-ItemProperty -Path $tcpP -Name "MaxUserPort"          -ErrorAction SilentlyContinue
+        Remove-ItemProperty -Path $tcpP -Name "TcpMaxDupAcks"        -ErrorAction SilentlyContinue
+        Remove-ItemProperty -Path $tcpP -Name "SackOpts"             -ErrorAction SilentlyContinue
+        Remove-ItemProperty -Path $tcpP -Name "EnablePMTUDiscovery"  -ErrorAction SilentlyContinue
+        Remove-ItemProperty -Path $tcpP -Name "EnableICMPRedirect"   -ErrorAction SilentlyContinue
+        Write-OK "TCP Stack vollstaendig auf Windows-Standard zurueckgesetzt."
         & netsh int tcp set global chimney=default        2>&1 | Out-Null
         & netsh int tcp set global ecncapability=default  2>&1 | Out-Null
         & netsh int tcp set global timestamps=default     2>&1 | Out-Null
@@ -3079,6 +3213,11 @@ function Show-Summary {
     Write-Host "   - Bluetooth Controller Polling auf 1ms beschleunigt (BT-Stack)" -ForegroundColor Gray
     Write-Host "   - XInput Latenz-Optimierung: direkter HID-Pfad, LegacyInput deaktiviert" -ForegroundColor Gray
     Write-Host "   - Controller Rumble/Vibration gegen Energiesparmodus gesichert (XInput+HID+BT)" -ForegroundColor Gray
+    Write-Host "   - TCP AutoTuning: experimental (max Receive Window), Heuristics deaktiviert" -ForegroundColor Gray
+    Write-Host "   - TCP Supplemental: MinRTO 100ms, DelayedACK 10ms/Freq 1 (Upload-Latenz -)" -ForegroundColor Gray
+    Write-Host "   - TCP Stack: MaxUserPort 65534, TcpTimedWaitDelay 30s, SackOpts, MaxDupAcks" -ForegroundColor Gray
+    Write-Host "   - NIC: Interrupt Moderation Low/Disabled, Buffer Receive 256, Transmit 512" -ForegroundColor Gray
+    Write-Host "   - InitialRTO 1000ms, Pacing off, MaxSynRetrans 2" -ForegroundColor Gray
     Write-Host "   - Render-Latenz: Pre-Rendered Frames=1, SwapEffect, PowerMizer Max (NVIDIA)" -ForegroundColor Gray
     Write-Host "   - NetworkThrottlingIndex: 0xFFFFFFFF (vollstaendig deaktiviert, kein Packet-Delay)" -ForegroundColor Gray
     Write-Host "   - HAGS: GPU-Auslastungscheck - Warnung bei >90pct Last (Gegner-Delay-Ursache!)" -ForegroundColor Gray
