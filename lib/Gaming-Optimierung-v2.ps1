@@ -1677,7 +1677,11 @@ function Set-UDPBufferOptimization {
         $afdPath = "HKLM:\SYSTEM\CurrentControlSet\Services\AFD\Parameters"
         if (-not (Test-Path $afdPath)) { New-Item -Path $afdPath -Force | Out-Null }
 
-        # Receive/Send Window auf 64KB erhoehen (Standard ist oft zu klein fuer CoD)
+        # AFD DefaultReceiveWindow / DefaultSendWindow:
+        # HINWEIS: Seit Windows Vista ignoriert das NDIS-Stack diese Werte fuer TCP
+        # (Apps ueberschreiben mit SO_RCVBUF / SO_SNDBUF per setsockopt).
+        # Fuer UDP-Gaming-Spiele (CoD) setzen die Game-Engines eigene Socket-Puffer.
+        # 65536 ist hier belassen fuer Legacy-UDP-Pfade ohne eigene Puffereinstellung.
         Set-ItemProperty -Path $afdPath -Name "DefaultReceiveWindow"         -Value 65536  -Type DWord
         Set-ItemProperty -Path $afdPath -Name "DefaultSendWindow"            -Value 65536  -Type DWord
 
@@ -1686,8 +1690,19 @@ function Set-UDPBufferOptimization {
 
         # Winsock-Puffer systemweit
         $tcpPath = "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters"
-        Set-ItemProperty -Path $tcpPath -Name "GlobalMaxTcpWindowSize"       -Value 65535  -Type DWord -ErrorAction SilentlyContinue
-        Set-ItemProperty -Path $tcpPath -Name "TcpWindowSize"                -Value 65535  -Type DWord -ErrorAction SilentlyContinue
+        # BEWUSST NICHT GESETZT: GlobalMaxTcpWindowSize und TcpWindowSize
+        # Diese Keys auf 65535 setzen BEGRENZT das TCP Window auf 64KB und
+        # verursacht hohe Average-Latenz (160ms+) weil:
+        # - autotuninglevel=normal skaliert das Window dynamisch (bis 8MB)
+        # - GlobalMaxTcpWindowSize=65535 deckelt das auf 64KB (hard cap)
+        # - Bei 100ms+ Basis-Latenz: Max-Durchsatz = 64KB/0.1s = nur 5.1 Mbps
+        # - TCP staut sich -> Sender wartet auf ACKs -> Latenz steigt mit Last
+        # Loesung: Keys NICHT setzen, damit autotuninglevel=normal voll wirkt.
+        # Falls Keys noch gesetzt sind (Altlast), jetzt entfernen:
+        Remove-ItemProperty -Path $tcpPath -Name "GlobalMaxTcpWindowSize" -ErrorAction SilentlyContinue
+        Remove-ItemProperty -Path $tcpPath -Name "TcpWindowSize"          -ErrorAction SilentlyContinue
+        Write-OK "GlobalMaxTcpWindowSize + TcpWindowSize entfernt (64KB-Cap aufgehoben)."
+        Write-OK "autotuninglevel=normal skaliert TCP Window nun automatisch (bis 8MB)."
 
         Write-OK "UDP/AFD-Puffer auf 64KB optimiert (weniger Paketverlust unter Last)."
         Write-Info "Direkt relevant fuer CoD Black Ops 7 da das Spiel hauptsaechlich UDP nutzt."
@@ -2247,6 +2262,13 @@ function Set-TCPChimneyConfig {
         Set-ItemProperty -Path $tcpParams -Name "SackOpts"              -Value 1    -Type DWord -ErrorAction SilentlyContinue
         Write-OK "SackOpts: SACK aktiviert (selektive Wiederuebertragung, weniger Upload-Overhead)."
 
+        # Tcp1323Opts = 1: RFC 1323 Window Scaling aktivieren (KEIN Timestamp)
+        # Notwendig damit autotuninglevel=normal das TCP Receive Window über 64KB skalieren kann
+        # Wert 1 = nur Window Scaling aktiv, Timestamps AUS (Timestamps erhoehen Overhead)
+        # Wert 3 = Window Scaling + Timestamps (nicht empfohlen wegen Overhead)
+        Set-ItemProperty -Path $tcpParams -Name "Tcp1323Opts"           -Value 1    -Type DWord -ErrorAction SilentlyContinue
+        Write-OK "Tcp1323Opts=1: RFC 1323 Window Scaling aktiv (TCP Window skaliert ueber 64KB)."
+
         # EnablePMTUDiscovery: 1 = Path MTU Discovery aktiv
         # Verhindert IP-Fragmentierung durch optimale Paketgroesse
         Set-ItemProperty -Path $tcpParams -Name "EnablePMTUDiscovery"   -Value 1    -Type DWord -ErrorAction SilentlyContinue
@@ -2587,6 +2609,7 @@ function Invoke-UndoOptimizations {
         Remove-ItemProperty -Path $tcpP -Name "SackOpts"             -ErrorAction SilentlyContinue
         Remove-ItemProperty -Path $tcpP -Name "EnablePMTUDiscovery"  -ErrorAction SilentlyContinue
         Remove-ItemProperty -Path $tcpP -Name "EnableICMPRedirect"   -ErrorAction SilentlyContinue
+        Remove-ItemProperty -Path $tcpP -Name "Tcp1323Opts"           -ErrorAction SilentlyContinue
         Remove-ItemProperty -Path $tcpP -Name "EnableDeadGWDetect"     -ErrorAction SilentlyContinue
         Remove-ItemProperty -Path $tcpP -Name "DisableIPSourceRouting" -ErrorAction SilentlyContinue
         Write-OK "TCP Stack vollstaendig auf Windows-Standard zurueckgesetzt."
