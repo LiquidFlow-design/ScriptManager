@@ -1643,6 +1643,29 @@ function Enable-TCPFastOpen {
             $null = & netsh int tcp set supplemental template=internet congestionwindowrestart=disabled 2>&1
             Write-OK "Congestion Window Restart: disabled (kein Window-Reset nach Match-Pausen)."
 
+            # Set-NetTCPSetting: Moderne API fuer TCP-Profil-Tuning (Windows 10/11)
+            # Ergaenzt netsh int tcp set supplemental - ist die bevorzugte PowerShell-API
+            # ScalingHeuristics=Disabled: verhindert dass Windows Window Scaling selbst
+            # deaktiviert basierend auf alten Heuristiken (kann Latenz stark erhoehen!)
+            try {
+                Set-NetTCPSetting -SettingName "InternetCustom" `
+                    -ScalingHeuristics Disabled `
+                    -AutoTuningLevelLocal Normal `
+                    -CongestionProvider Cubic `
+                    -EcnCapability Enabled `
+                    -ErrorAction SilentlyContinue
+                # AutomaticUseCustom aktivieren: Windows wendet InternetCustom auf alle
+                # Verbindungen mit RTT > 10ms an (normale Internet-Verbindungen)
+                Set-NetTCPSetting -SettingName "Automatic" `
+                    -AutomaticUseCustom Enabled `
+                    -ErrorAction SilentlyContinue
+                Write-OK "Set-NetTCPSetting: InternetCustom Profil optimiert (ScalingHeuristics=Disabled)."
+                Write-Info "ScalingHeuristics=Disabled verhindert Windows-seitige Window-Scaling-Deaktivierung."
+            }
+            catch {
+                Write-Warn "Set-NetTCPSetting nicht verfuegbar (Windows Version?): $_"
+            }
+
             # RACK (Recent ACKnowledgment) aktivieren
             # Erkennt Paketverlust schneller als klassisches 3-DupACK-System
             # Besonders effektiv bei niedrigem RTT (10ms Ping): keine 3-Paket-Wartezeit
@@ -2262,12 +2285,14 @@ function Set-TCPChimneyConfig {
         Set-ItemProperty -Path $tcpParams -Name "SackOpts"              -Value 1    -Type DWord -ErrorAction SilentlyContinue
         Write-OK "SackOpts: SACK aktiviert (selektive Wiederuebertragung, weniger Upload-Overhead)."
 
-        # Tcp1323Opts = 1: RFC 1323 Window Scaling aktivieren (KEIN Timestamp)
-        # Notwendig damit autotuninglevel=normal das TCP Receive Window über 64KB skalieren kann
-        # Wert 1 = nur Window Scaling aktiv, Timestamps AUS (Timestamps erhoehen Overhead)
-        # Wert 3 = Window Scaling + Timestamps (nicht empfohlen wegen Overhead)
-        Set-ItemProperty -Path $tcpParams -Name "Tcp1323Opts"           -Value 1    -Type DWord -ErrorAction SilentlyContinue
-        Write-OK "Tcp1323Opts=1: RFC 1323 Window Scaling aktiv (TCP Window skaliert ueber 64KB)."
+        # Tcp1323Opts: BEWUSST NICHT GESETZT / ENTFERNT
+        # Auf Windows Vista+ steuert netsh autotuninglevel=normal Window Scaling bereits korrekt.
+        # Tcp1323Opts ist ein Legacy-Key fuer Windows XP/2000.
+        # Setzen auf 1 erzwingt Window Scaling auch bei schlechten Bedingungen ->
+        # groessere Windows als Congestion-Controller erlaubt -> Bufferbloat -> hohe Latenz.
+        # Loesung: Key entfernen, Windows entscheidet selbst (optimal auf Win10/11).
+        Remove-ItemProperty -Path $tcpParams -Name "Tcp1323Opts" -ErrorAction SilentlyContinue
+        Write-OK "Tcp1323Opts entfernt (Windows verwaltet Window Scaling selbst via autotuninglevel)."
 
         # EnablePMTUDiscovery: 1 = Path MTU Discovery aktiv
         # Verhindert IP-Fragmentierung durch optimale Paketgroesse
@@ -2601,6 +2626,11 @@ function Invoke-UndoOptimizations {
         & netsh int tcp set supplemental template=internet taillossprobe=disabled      2>&1 | Out-Null
         & netsh int tcp set global hystart=enabled 2>&1 | Out-Null
         & netsh int tcp set global prr=disabled    2>&1 | Out-Null
+        try {
+            Set-NetTCPSetting -SettingName "InternetCustom" -ScalingHeuristics Disabled -AutoTuningLevelLocal Normal -CongestionProvider Cubic -EcnCapability Disabled -ErrorAction SilentlyContinue
+            Set-NetTCPSetting -SettingName "Automatic" -AutomaticUseCustom Disabled -ErrorAction SilentlyContinue
+            Write-OK "Set-NetTCPSetting auf Windows-Standard zurueckgesetzt."
+        } catch {}
         # TCP/IP Parameter zurueck
         $tcpP = "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters"
         Remove-ItemProperty -Path $tcpP -Name "TcpTimedWaitDelay"   -ErrorAction SilentlyContinue
