@@ -107,6 +107,12 @@ $Config = @{
     # Network Throttling Index deaktivieren (verhindert Paketdrosselung durch Windows)
     NetworkThrottling          = $true
 
+    # NetworkThrottlingIndex: 0xFFFFFFFF (komplett deaktiviert) statt 20
+    # Deaktiviert Windows-Netzwerkdrosselung vollstaendig -> keine Packet-Delay mehr
+    # TRADE-OFF: Kann auf einigen aelteren Systemen DPC-Jitter erhoehen
+    # -> Bei spuerbarem Jitter/Stottern auf $false setzen (dann bleibt Wert 20)
+    NetworkThrottlingMaximum   = $true
+
     # SystemResponsiveness: CPU-Zeit fuer Spiele maximieren (0 = alles fuer Vordergrund)
     SystemResponsiveness       = $true
 
@@ -253,6 +259,20 @@ $Config = @{
     # Hintergrundprozesse bei Vollbild-Spielen pausieren (Quiet Hours for Apps)
     # Windows 11: Prevents background apps from consuming CPU during full-screen gaming  
     GamingQuietMode            = $true
+
+    # ---- NEU v8: Render-Latenz Optimierungen ----
+
+    # Pre-Rendered Frames auf 1 (NVIDIA DX11/OpenGL)
+    # Minimiert die GPU-Render-Queue: GPU wartet auf naechsten Frame statt vorauszuplanen
+    # Effekt: Gegner erscheinen schneller auf dem Bildschirm, Input-Response direkter
+    # TRADE-OFF: Kann bei GPU-Bottleneck zu leichtem FPS-Verlust fuehren
+    # Wirkung nur bei DX11/OpenGL - DX12/Vulkan steuert das die Spiele-Engine selbst
+    PreRenderedFrames          = $true
+
+    # SwapEffect: Flip Discard erzwingen (niedrigste Render-Latenz)
+    # Verhindert dass DWM extra Buffer-Kopie einfuegt (Standard = ein Frame extra Latenz)
+    # false = SwapEffectUpgrade deaktiviert (minimal weniger Latenz, kein DWM-Buffer)
+    SwapEffectOptimierung      = $false   # false = DEAKTIVIERT (niedrigere Latenz!)
 }
 
 # ============================================================
@@ -471,10 +491,35 @@ function Enable-HAGS {
 
     try {
         $path = "HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers"
+
+        # GPU-Auslastung messen (kurze Stichprobe)
+        $gpuLoad = $null
+        try {
+            # Versuche GPU-Auslastung ueber WMI/PerfCounter zu ermitteln
+            $gpuCounter = Get-Counter "\GPU Engine(*engtype_3D)\Utilization Percentage" -SampleInterval 1 -MaxSamples 2 -ErrorAction SilentlyContinue
+            if ($gpuCounter) {
+                $gpuLoad = [math]::Round(($gpuCounter.CounterSamples | Measure-Object -Property CookedValue -Average).Average, 1)
+            }
+        } catch {}
+
         Set-ItemProperty -Path $path -Name "HwSchMode" -Value 2 -Type DWord
         Write-OK "HAGS aktiviert. (Neustart erforderlich)"
-        Write-Info "Hinweis: HAGS benoetigt eine GTX 1000 / RX 5000 Serie oder neuer + Windows 10 2004+"
-        Write-Info "Wichtig: Falls weiterhin Frame-Drops auftreten, HAGS testweise deaktivieren (Wert 1 statt 2)."
+        Write-Info "HAGS benoetigt GTX 1000 / RX 5000 Serie oder neuer + Windows 10 2004+"
+
+        if ($gpuLoad -ne $null) {
+            if ($gpuLoad -gt 90) {
+                Write-Warn "GPU-Auslastung aktuell: $gpuLoad% (hoch!)"
+                Write-Warn "Bei dauerhaft >90% GPU-Last kann HAGS die Render-Queue aufblaehen und Gegner"
+                Write-Warn "erscheinen mit Verzoegerung. In diesem Fall HAGS deaktivieren:"
+                Write-Warn "  -> In-Game: V-Sync aus, FPS auf ~90% des Monitor-Hz cappern"
+                Write-Warn "  -> Oder: HAGS = false in Konfiguration setzen"
+            } else {
+                Write-OK "GPU-Auslastung: $gpuLoad% - HAGS optimal fuer dieses System."
+            }
+        } else {
+            Write-Info "Wichtig: Falls Gegner spaeter sichtbar werden - GPU-Auslastung pruefen (Task-Manager)."
+            Write-Info "Bei dauerhaft >90% GPU: HAGS deaktivieren oder FPS-Cap setzen (monitor_hz * 0.9)."
+        }
     }
     catch {
         Write-Warn "HAGS konnte nicht aktiviert werden: $_"
@@ -582,7 +627,7 @@ function Set-StorageOptimizations {
         try {
             $gpuPath = "HKLM:\SOFTWARE\Microsoft\DirectX\UserGpuPreferences"
             if (-not (Test-Path $gpuPath)) { New-Item -Path $gpuPath -Force | Out-Null }
-            Set-ItemProperty -Path $gpuPath -Name "DirectXUserGlobalSettings" -Value "SwapEffectUpgradeEnable=1;" -Type String -ErrorAction SilentlyContinue
+            # SwapEffectUpgrade ist in Set-RenderLatency konfiguriert - wird dort gezielt gesetzt
 
             # NVIDIA Shader Cache
             $nvPath = "HKLM:\SYSTEM\CurrentControlSet\Control\Class\{4d36e968-e325-11ce-bfc1-08002be10318}\0000"
@@ -891,14 +936,21 @@ function Set-NetworkAndCPUResponsiveness {
         try {
             $mmPath = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile"
             if (-not (Test-Path $mmPath)) { New-Item -Path $mmPath -Force | Out-Null }
-            # NetworkThrottlingIndex: 20 statt 0xFFFFFFFF
-            # 0xFFFFFFFF (komplett deaktiviert) verschlechtert nachweislich die DPC-Latenz,
-            # was sich als Netzwerk-Jitter in Gunfights bemerkbar macht.
-            # Wert 20 hebt die 15MB/s-Deckelung auf ohne den DPC-Schutz zu verlieren.
-            # Standard: 10 | Gaming-Optimum: 20 | Nicht empfohlen: 0xFFFFFFFF
-            Set-ItemProperty -Path $mmPath -Name "NetworkThrottlingIndex" -Value 20 -Type DWord
-            Write-OK "NetworkThrottlingIndex auf 20 gesetzt (optimierter Gaming-Wert, kein DPC-Jitter)."
-            Write-Info "Wert 20 hebt Windows-Netzwerkdrosselung auf ohne DPC-Latenz zu verschlechtern."
+            # NetworkThrottlingIndex:
+            # 0xFFFFFFFF = Windows-Netzwerkdrosselung komplett deaktiviert
+            #              -> kein Packet-Processing-Delay, Gegner werden schneller sichtbar
+            #              -> TRADE-OFF: kann auf aelteren Systemen DPC-Jitter erhoehen
+            # 20          = Kompromiss (hebt 15MB/s-Cap auf, behaelt DPC-Schutz)
+            # Standard    = 10
+            if ($Config.NetworkThrottlingMaximum) {
+                # 0xFFFFFFFF als signed Int32 = -1
+                Set-ItemProperty -Path $mmPath -Name "NetworkThrottlingIndex" -Value 0xFFFFFFFF -Type DWord
+                Write-OK "NetworkThrottlingIndex auf 0xFFFFFFFF gesetzt (vollstaendig deaktiviert)."
+                Write-Warn "Tipp: Bei Netzwerk-Jitter/Stottern NetworkThrottlingMaximum = false setzen (dann Wert 20)."
+            } else {
+                Set-ItemProperty -Path $mmPath -Name "NetworkThrottlingIndex" -Value 20 -Type DWord
+                Write-OK "NetworkThrottlingIndex auf 20 gesetzt (moderater Gaming-Wert, DPC-sicher)."
+            }
         }
         catch { Write-Warn "NetworkThrottlingIndex konnte nicht gesetzt werden: $_" }
     } else { Write-Skip "NetworkThrottlingIndex-Optimierung uebersprungen." }
@@ -2124,6 +2176,35 @@ function Invoke-UndoOptimizations {
         try { Set-Service -Name $svcName -StartupType Automatic -ErrorAction SilentlyContinue } catch {}
     }
 
+
+    # Pre-Rendered Frames zuruecksetzen (NVIDIA)
+    try {
+        $gpuPath = "HKLM:\SYSTEM\CurrentControlSet\Control\Class\{4d36e968-e325-11ce-bfc1-08002be10318}"
+        $nvAdapters = Get-ChildItem -Path $gpuPath -ErrorAction SilentlyContinue | Where-Object { $_.Name -match "\\\d{4}$" }
+        foreach ($adapter in $nvAdapters) {
+            $desc = (Get-ItemProperty -Path $adapter.PSPath -Name "DriverDesc" -ErrorAction SilentlyContinue).DriverDesc
+            if ($desc -match "NVIDIA") {
+                Remove-ItemProperty -Path $adapter.PSPath -Name "MaxPreRenderedFrames" -ErrorAction SilentlyContinue
+                Remove-ItemProperty -Path $adapter.PSPath -Name "PipelinedFrames"      -ErrorAction SilentlyContinue
+            }
+        }
+        Write-OK "NVIDIA MaxPreRenderedFrames auf Treiber-Standard zurueckgesetzt."
+    } catch {}
+
+    # NetworkThrottlingIndex Standard (10)
+    try {
+        $mmPath = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile"
+        Set-ItemProperty -Path $mmPath -Name "NetworkThrottlingIndex" -Value 10 -Type DWord -ErrorAction SilentlyContinue
+        Write-OK "NetworkThrottlingIndex auf Standard (10) zurueckgesetzt."
+    } catch {}
+
+    # SwapEffectUpgrade Standard zurueck
+    try {
+        $dxPath = "HKLM:\SOFTWARE\Microsoft\DirectX\UserGpuPreferences"
+        Set-ItemProperty -Path $dxPath -Name "DirectXUserGlobalSettings" -Value "SwapEffectUpgradeEnable=1;" -Type String -ErrorAction SilentlyContinue
+        Write-OK "SwapEffectUpgrade auf Standard reaktiviert."
+    } catch {}
+
     # NetworkThrottlingIndex + SystemResponsiveness zurueck
     try {
         $mmPath = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile"
@@ -2526,6 +2607,97 @@ function Invoke-UndoOptimizations {
 # ============================================================
 #  FAST STARTUP DEAKTIVIEREN
 # ============================================================
+# ============================================================
+#  RENDER-LATENZ: PRE-RENDERED FRAMES + SWAP EFFECT
+# ============================================================
+function Set-RenderLatency {
+    Write-Header "NEU - Render-Latenz: Pre-Rendered Frames + Flip Model"
+
+    $gpuPath = "HKLM:\SYSTEM\CurrentControlSet\Control\Class\{4d36e968-e325-11ce-bfc1-08002be10318}"
+    $nvAdapters = Get-ChildItem -Path $gpuPath -ErrorAction SilentlyContinue |
+                  Where-Object { $_.Name -match "\\\d{4}$" }
+
+    # ── PRE-RENDERED FRAMES = 1 (NVIDIA, DX11/OpenGL) ──────────────────────
+    if ($Config.PreRenderedFrames) {
+        $nvFound = $false
+        foreach ($adapter in $nvAdapters) {
+            $driverDesc = (Get-ItemProperty -Path $adapter.PSPath -Name "DriverDesc" -ErrorAction SilentlyContinue).DriverDesc
+            if ($driverDesc -match "NVIDIA") {
+                try {
+                    # MaxPreRenderedFrames = 1: GPU plant max. 1 Frame voraus
+                    # Standard: "Application-controlled" (meist 3) -> fuehrt zu Render-Queue-Aufstau
+                    # Wert 1 = niedrigste Latenz, GPU rendert frame-synchron mit Spiel-Loop
+                    Set-ItemProperty -Path $adapter.PSPath -Name "MaxPreRenderedFrames"  -Value 1 -Type DWord -ErrorAction SilentlyContinue
+                    # Alternativ-Key der von neueren Treibern genutzt wird
+                    Set-ItemProperty -Path $adapter.PSPath -Name "PipelinedFrames"       -Value 1 -Type DWord -ErrorAction SilentlyContinue
+                    # NVIDIA Low Latency Mode = On (nicht Ultra - Ultra kann bei CPU-Bottleneck schaden)
+                    # 0 = Off, 1 = On (1 pre-rendered frame), 2 = Ultra (just-in-time)
+                    Set-ItemProperty -Path $adapter.PSPath -Name "DelayedFCEnable"       -Value 0 -Type DWord -ErrorAction SilentlyContinue
+                    $nvFound = $true
+                    Write-OK "NVIDIA MaxPreRenderedFrames = 1 gesetzt: $driverDesc"
+                } catch {
+                    Write-Warn "MaxPreRenderedFrames fuer $driverDesc fehlgeschlagen: $_"
+                }
+            }
+        }
+
+        # Globaler DX-Profil-Override (wirkt auch ohne NVCP)
+        $dxProfilePath = "HKCU:\Software\NVIDIA Corporation\Global\NVTweak"
+        if (-not (Test-Path $dxProfilePath)) { New-Item -Path $dxProfilePath -Force | Out-Null }
+        Set-ItemProperty -Path $dxProfilePath -Name "Multimonitor" -Value 0 -Type DWord -ErrorAction SilentlyContinue
+
+        # NVIDIA Profile Inspector Pfad (falls installiert)
+        $nvProfilePath = "HKLM:\SOFTWARE\NVIDIA Corporation\Global\NVTweak"
+        if (-not (Test-Path $nvProfilePath)) { New-Item -Path $nvProfilePath -Force | Out-Null }
+        Set-ItemProperty -Path $nvProfilePath -Name "MaxFramesAllowed" -Value 1 -Type DWord -ErrorAction SilentlyContinue
+
+        if (-not $nvFound) {
+            Write-Skip "Kein NVIDIA-Adapter gefunden - PreRenderedFrames uebersprungen."
+        }
+
+        Write-Info "Hinweis: DX12/Vulkan-Spiele (CoD MW3, Warzone) ignorieren diesen Wert."
+        Write-Info "Fuer DX12: Reflex in den Spieloptionen aktivieren (wirkt direkt im Engine-Loop)."
+        Write-Info "Bei GPU-Bottleneck: FPS-Cap auf ~90% von Monitor-Hz setzen (z.B. 216 bei 240Hz)."
+    } else {
+        Write-Skip "Pre-Rendered Frames uebersprungen (Konfiguration)."
+    }
+
+    # ── SWAP EFFECT: FLIP MODEL KONFIGURIEREN ───────────────────────────────
+    $dxGlobalPath = "HKLM:\SOFTWARE\Microsoft\DirectX\UserGpuPreferences"
+    if (-not (Test-Path $dxGlobalPath)) { New-Item -Path $dxGlobalPath -Force | Out-Null }
+
+    if ($Config.SwapEffectOptimierung) {
+        # SwapEffectUpgrade = 1: DWM upgraded Spiele auf Flip Sequential/Flip Discard
+        # Kann einen zusaetzlichen DWM-Buffer-Schritt einfuegen -> +1 Frame Latenz
+        Set-ItemProperty -Path $dxGlobalPath -Name "DirectXUserGlobalSettings" -Value "SwapEffectUpgradeEnable=1;" -Type String -ErrorAction SilentlyContinue
+        Write-OK "SwapEffectUpgrade aktiviert (DWM-Flip-Upgrade fuer Flip Discard)."
+    } else {
+        # SwapEffectUpgrade = 0: DWM greift nicht ein, Spiel nutzt eigenen Swap-Chain-Modus
+        # Bei nativem Fullscreen-Exklusiv-Modus niedrigste Latenz ohne DWM-Overhead
+        Remove-ItemProperty -Path $dxGlobalPath -Name "DirectXUserGlobalSettings" -ErrorAction SilentlyContinue
+        Write-OK "SwapEffectUpgrade deaktiviert (kein DWM-Buffer-Override -> niedrigste Latenz bei Fullscreen)."
+        Write-Info "Voraussetzung: Spiel laeuft im echten Fullscreen-Exklusiv-Modus (nicht Borderless Windowed)."
+    }
+
+    # ── GPU CLOCK BOOST FUER NIEDRIGE LAST (verhindert Late-Frame bei CPU-Bottleneck) ──
+    foreach ($adapter in $nvAdapters) {
+        $driverDesc = (Get-ItemProperty -Path $adapter.PSPath -Name "DriverDesc" -ErrorAction SilentlyContinue).DriverDesc
+        if ($driverDesc -match "NVIDIA") {
+            try {
+                # PowerMizerEnable = 0: Kein Downclocking bei niedrigerer GPU-Last
+                # Verhindert dass GPU taktet wenn CPU im Frame-Loop bremst
+                Set-ItemProperty -Path $adapter.PSPath -Name "PowerMizerEnable"       -Value 1    -Type DWord -ErrorAction SilentlyContinue
+                Set-ItemProperty -Path $adapter.PSPath -Name "PowerMizerLevel"        -Value 1    -Type DWord -ErrorAction SilentlyContinue
+                Set-ItemProperty -Path $adapter.PSPath -Name "PowerMizerLevelAC"      -Value 1    -Type DWord -ErrorAction SilentlyContinue
+                # PerfLevelSrc = 0x3322: GPU bleibt auf maximalem P-State
+                Set-ItemProperty -Path $adapter.PSPath -Name "PerfLevelSrc"           -Value 0x3322 -Type DWord -ErrorAction SilentlyContinue
+                Write-OK "NVIDIA GPU PowerMizer: Max Performance Level erzwungen (kein Clock-Downscaling)."
+            } catch {}
+        }
+    }
+}
+
+
 function Disable-FastStartup {
     Write-Header "NEU - Fast Startup deaktivieren"
 
@@ -2907,6 +3079,9 @@ function Show-Summary {
     Write-Host "   - Bluetooth Controller Polling auf 1ms beschleunigt (BT-Stack)" -ForegroundColor Gray
     Write-Host "   - XInput Latenz-Optimierung: direkter HID-Pfad, LegacyInput deaktiviert" -ForegroundColor Gray
     Write-Host "   - Controller Rumble/Vibration gegen Energiesparmodus gesichert (XInput+HID+BT)" -ForegroundColor Gray
+    Write-Host "   - Render-Latenz: Pre-Rendered Frames=1, SwapEffect, PowerMizer Max (NVIDIA)" -ForegroundColor Gray
+    Write-Host "   - NetworkThrottlingIndex: 0xFFFFFFFF (vollstaendig deaktiviert, kein Packet-Delay)" -ForegroundColor Gray
+    Write-Host "   - HAGS: GPU-Auslastungscheck - Warnung bei >90pct Last (Gegner-Delay-Ursache!)" -ForegroundColor Gray
     Write-Host "   - VBS/HVCI: nur aktiv wenn VBSDeaktivieren = true in Konfiguration" -ForegroundColor Gray
     Write-Host ""
     Write-Host "  NEUSTART EMPFOHLEN damit alle Aenderungen wirksam werden." -ForegroundColor Yellow
@@ -3005,6 +3180,7 @@ Set-TCPChimneyConfig
 Set-ClockInterruptIsolierung
 Set-Win32PrioritySeparation
 Set-MMCSSAlwaysOn
+Set-RenderLatency
 Disable-FastStartup
 Set-GamingQuietMode
 Disable-VBS
