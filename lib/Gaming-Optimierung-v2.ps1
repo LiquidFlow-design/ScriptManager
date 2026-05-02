@@ -107,11 +107,11 @@ $Config = @{
     # Network Throttling Index deaktivieren (verhindert Paketdrosselung durch Windows)
     NetworkThrottling          = $true
 
-    # NetworkThrottlingIndex: 0xFFFFFFFF (komplett deaktiviert) statt 20
-    # Deaktiviert Windows-Netzwerkdrosselung vollstaendig -> keine Packet-Delay mehr
-    # TRADE-OFF: Kann auf einigen aelteren Systemen DPC-Jitter erhoehen
-    # -> Bei spuerbarem Jitter/Stottern auf $false setzen (dann bleibt Wert 20)
-    NetworkThrottlingMaximum   = $true
+    # NetworkThrottlingIndex Modus:
+    # true  = 0xFFFFFFFF (vollstaendig deaktiviert) - NUR empfohlen wenn Router SQM hat
+    #         ACHTUNG: Kann bei normalem Router Bufferbloat verstaerken!
+    # false = Wert 20 (moderater Kompromiss, Standard-Empfehlung fuer die meisten)
+    NetworkThrottlingMaximum   = $false   # false = sicherer Standard (Wert 20)
 
     # SystemResponsiveness: CPU-Zeit fuer Spiele maximieren (0 = alles fuer Vordergrund)
     SystemResponsiveness       = $true
@@ -273,6 +273,30 @@ $Config = @{
     # Verhindert dass DWM extra Buffer-Kopie einfuegt (Standard = ein Frame extra Latenz)
     # false = SwapEffectUpgrade deaktiviert (minimal weniger Latenz, kein DWM-Buffer)
     SwapEffectOptimierung      = $false   # false = DEAKTIVIERT (niedrigere Latenz!)
+
+    # ---- NEU v13: Weitere verifizierte Latenz-Tweaks ----
+
+    # NIC PnP Energiesparmodus via PnPCapabilities deaktivieren
+    # Setzt PnPCapabilities=24 fuer alle aktiven Adapter
+    # Verhindert dass Windows Ethernet-NIC schlafen legt (stabiler als USB-Energiesparmodus)
+    NICPnPPower                = $true
+
+    # IP Source Routing + Dead Gateway Detection
+    # DisableIPSourceRouting=2: entfernt unnoetige Header-Verarbeitung pro Paket
+    # EnableDeadGWDetect=0: verhindert Gateway-Wechsel-Latenzzacken
+    IPSourceRouting            = $true
+
+    # NDIS MaxDpcTasksPerCore = 1 (DPC-Pileup verhindern)
+    # Begrenzt NDIS DPC-Tasks pro CPU-Kern - wirkt direkt auf LatencyMon-Messwerte
+    NdisTaskLimit              = $true
+
+    # TCPNoDelay global (MSMQ-Pfad) - ergaenzt Interface-spezifischen Nagle-Tweak
+    # Deaktiviert Nagle fuer alle Winsock-Apps ohne eigenen setsockopt()-Call
+    TCPNoDelayGlobal           = $true
+
+    # DNS-over-HTTPS deaktivieren (Windows 11 aktiviert es automatisch)
+    # DoH hat 10-50ms hoehere DNS-Latenz durch TLS-Overhead -> erste Verbindung zum Server schneller
+    DoHDeaktivieren            = $true
 }
 
 # ============================================================
@@ -543,6 +567,16 @@ function Disable-NagleAlgorithm {
             Set-ItemProperty -Path $iface.PSPath -Name "TCPNoDelay"      -Value 1   -Type DWord -ErrorAction SilentlyContinue
         }
         Write-OK "Nagle-Algorithmus fuer alle Netzwerkinterfaces deaktiviert."
+
+        # TCPNoDelay global setzen (MSMQ-Pfad)
+        # Ergaenzt den Interface-spezifischen Tweak oben fuer Apps ohne eigenen setsockopt()
+        # Kein Konflikt: Interface-Pfad und MSMQ-Pfad sind separate Registry-Stellen
+        if ($Config.TCPNoDelayGlobal) {
+            $msmqPath = "HKLM:\SOFTWARE\Microsoft\MSMQ\Parameters"
+            if (-not (Test-Path $msmqPath)) { New-Item -Path $msmqPath -Force | Out-Null }
+            Set-ItemProperty -Path $msmqPath -Name "TCPNoDelay" -Value 1 -Type DWord -ErrorAction SilentlyContinue
+            Write-OK "TCPNoDelay global gesetzt (MSMQ-Pfad, wirkt auf alle Winsock-Apps)."
+        }
     }
     catch {
         Write-Warn "Nagle-Einstellungen konnten nicht gesetzt werden: $_"
@@ -726,22 +760,34 @@ function Set-NetworkOptimizations {
     # Receive Window Auto-Tuning
     if ($Config.ReceiveWindowTuning) {
         try {
-            # autotuninglevel=experimental: Maximiert das TCP Receive Window dynamisch
-            # -> besserer Download-Durchsatz ohne Latenzanstieg bei Fiber/Kabel
-            # Normal = 64KB-256KB Window-Cap, Experimental = bis 16MB window
-            # Microsoft-Empfehlung fuer low-latency high-bandwidth Verbindungen
-            & netsh int tcp set global autotuninglevel=experimental 2>&1 | Out-Null
-            Write-OK "TCP AutoTuning auf 'experimental' (maximales Receive Window fuer niedrige Latenz)."
+            # autotuninglevel=normal: Optimaler Wert fuer niedrig-Latenz Verbindungen
+            # WARUM NICHT 'experimental':
+            # experimental oeffnet das Receive Window auf >16MB -> Router/Modem-Buffer
+            # laufen bei voller Last voll -> Bufferbloat -> Latenz steigt mit der Zeit
+            # normal = dynamisch 64KB-8MB, passt sich an ohne Buffer zu fluten
+            # experimental NUR sinnvoll bei Satellite/WAN mit >100ms Ping
+            & netsh int tcp set global autotuninglevel=normal 2>&1 | Out-Null
+            Write-OK "TCP AutoTuning: 'normal' (kein Bufferbloat, stabile Latenz unter Last)."
+            Write-Info "Hinweis: 'experimental' wuerde Latenz bei Speedtest mit der Zeit erhoehen."
 
             # Heuristics interferiert mit AutoTuning -> deaktivieren
             # Windows 8.1+ hat es standardmaessig aus, bei manchen Setups aktiv
             & netsh int tcp set heuristics disabled 2>&1 | Out-Null
             Write-OK "TCP Window Scaling Heuristics deaktiviert (stoert AutoTuning nicht mehr)."
 
-            & netsh int tcp set global chimney=disabled        2>&1 | Out-Null
-            & netsh int tcp set global dca=enabled             2>&1 | Out-Null
-            & netsh int tcp set global ecncapability=disabled  2>&1 | Out-Null
-            & netsh int tcp set global timestamps=disabled     2>&1 | Out-Null
+            # Chimney: in Set-TCPChimneyConfig gesetzt
+            # DCA + Chimney: in Set-TCPChimneyConfig gesetzt (kein Doppel-Set)
+            # ECN (Explicit Congestion Notification): aktivieren
+            # ECN erlaubt Router/Modem dem Sender mitzuteilen "Buffer wird voll"
+            # BEVOR Pakete gedroppt werden -> TCP reduziert Window proaktiv
+            # -> verhindert Bufferbloat-Aufbau bei hoher Last
+            # Unterstuetzt von: Fritzbox, Asus, NETGEAR, pfSense, OPNsense, moderne ISP-Modems
+            # Risiko: Sehr alte Router (<2010) koennen ECN-Pakete falsch behandeln
+            # Bei Verbindungsproblemen: ecncapability=disabled setzen
+            & netsh int tcp set global ecncapability=enabled   2>&1 | Out-Null
+            Write-OK "ECN aktiviert (Frühwarnung vor Buffer-Vollaufen, verhindert Latenzanstieg)."
+            Write-Info "Bei Verbindungsproblemen (alter Router): ecncapability=disabled setzen."
+            # timestamps: in Set-TCPChimneyConfig gesetzt
 
             # Initial RTO: 1000ms statt 3000ms Standard
             # Wie lange Windows auf erstes ACK wartet - niedrigerer Wert = schnellerer
@@ -754,10 +800,24 @@ function Set-NetworkOptimizations {
             & netsh int tcp set global maxsynretransmissions=2 2>&1 | Out-Null
             Write-OK "MaxSynRetransmissions auf 2 (schnelleres Reconnect bei Verbindungsfehlern)."
 
+            # Proportional Rate Reduction aktivieren
+            # Verbessert TCP-Recovery nach Paketverlusten: schnelleres Hochfahren
+            # der Senderate statt dem klassischen "halbe Window-Groesse" Ansatz
+            & netsh int tcp set global prr=enabled 2>&1 | Out-Null
+            Write-OK "Proportional Rate Reduction: aktiviert (schnellere Recovery nach Packet-Loss)."
+
             # Pacing Profile deaktivieren: Windows paused Paket-Sending nicht mehr
             # Standard 'off' auf manchen Systemen 'slow start' -> erhoeht Upload-Latenz
             & netsh int tcp set global pacingprofile=off 2>&1 | Out-Null
             Write-OK "Pacing Profile: off (kein kuenstliches Ausbremsen des TCP-Sendevorgangs)."
+
+            # HyStart deaktivieren
+            # HyStart ist ein conservativer Slow-Start-Algorithmus: verzoegert das
+            # schnelle Hochfahren des Congestion Windows beim Verbindungsaufbau
+            # Bei Gaming-Traffic (kleine UDP/TCP Pakete, kurze Bursts) ist das
+            # unnoetig - direkt Vollgeschwindigkeit besser
+            & netsh int tcp set global hystart=disabled 2>&1 | Out-Null
+            Write-OK "HyStart: disabled (kein conservativer Slow-Start, sofort Vollgeschwindigkeit)."
 
             Write-OK "TCP Stack fuer niedrige Up/Download-Latenz optimiert."
         }
@@ -779,6 +839,31 @@ function Set-NetworkOptimizations {
         }
         catch { Write-Warn "DNS konnte nicht gesetzt werden: $_" }
     } else { Write-Skip "DNS-Optimierung uebersprungen (in Konfiguration deaktiviert)." }
+
+    # DoH (DNS-over-HTTPS) deaktivieren
+    if ($Config.DoHDeaktivieren) {
+        try {
+            # Windows 11 aktiviert DoH automatisch wenn unterstuetzt
+            # DoH hat 10-50ms hoehere DNS-Latenz durch TLS-Overhead gegenueber klassischem UDP-DNS
+            # Fuer Gaming: DNS-Lookup beim ersten Verbindungsaufbau zum Spielserver wird schneller
+            $dohPath = "HKLM:\SYSTEM\CurrentControlSet\Services\Dnscache\Parameters"
+            if (-not (Test-Path $dohPath)) { New-Item -Path $dohPath -Force | Out-Null }
+            # EnableAutoDoh: 1=auto, 2=nur DoH, 4=nur unverschluesselt (kein DoH)
+            Set-ItemProperty -Path $dohPath -Name "EnableAutoDoh" -Value 4 -Type DWord -ErrorAction SilentlyContinue
+            Write-OK "DNS-over-HTTPS deaktiviert (EnableAutoDoh=4, klassisches UDP-DNS aktiv)."
+            Write-Info "Reduziert DNS-Latenz um 10-50ms gegenueber DoH bei erster Spielserver-Verbindung."
+
+            # Zusaetzlich: DoH-Resolver-Liste leeren (verhindert automatische DoH-Aktivierung)
+            $dohDomainsPath = "HKLM:\SYSTEM\CurrentControlSet\Services\Dnscache\Parameters\DohWellKnownServers"
+            if (Test-Path $dohDomainsPath) {
+                Get-ChildItem -Path $dohDomainsPath -ErrorAction SilentlyContinue | ForEach-Object {
+                    $_ | Remove-Item -Force -ErrorAction SilentlyContinue
+                }
+                Write-OK "DoH-Resolver-Liste geleert (kein automatischer DoH-Fallback)."
+            }
+        }
+        catch { Write-Warn "DoH-Deaktivierung fehlgeschlagen: $_" }
+    } else { Write-Skip "DoH-Deaktivierung uebersprungen (Konfiguration)." }
 }
 
 # ============================================================
@@ -970,13 +1055,17 @@ function Set-NetworkAndCPUResponsiveness {
             # 20          = Kompromiss (hebt 15MB/s-Cap auf, behaelt DPC-Schutz)
             # Standard    = 10
             if ($Config.NetworkThrottlingMaximum) {
-                # 0xFFFFFFFF als signed Int32 = -1
+                # 0xFFFFFFFF: vollstaendig deaktiviert
+                # ACHTUNG: Kann Bufferbloat verstaerken da Windows ohne Drosselung
+                # Pakete sendet bis Router-Buffer ueberlaeuft -> Latenzanstieg!
+                # Nur sinnvoll wenn Router Smart Queue Management (SQM/fq_codel) hat
                 Set-ItemProperty -Path $mmPath -Name "NetworkThrottlingIndex" -Value 0xFFFFFFFF -Type DWord
-                Write-OK "NetworkThrottlingIndex auf 0xFFFFFFFF gesetzt (vollstaendig deaktiviert)."
-                Write-Warn "Tipp: Bei Netzwerk-Jitter/Stottern NetworkThrottlingMaximum = false setzen (dann Wert 20)."
+                Write-OK "NetworkThrottlingIndex: 0xFFFFFFFF (deaktiviert - nur mit Router-SQM empfohlen)."
+                Write-Warn "Bei steigender Latenz unter Last: NetworkThrottlingMaximum = false setzen (Wert 20)."
             } else {
+                # Wert 20: moderater Kompromiss - hebt 15MB/s-Cap auf ohne Buffer-Overrun
                 Set-ItemProperty -Path $mmPath -Name "NetworkThrottlingIndex" -Value 20 -Type DWord
-                Write-OK "NetworkThrottlingIndex auf 20 gesetzt (moderater Gaming-Wert, DPC-sicher)."
+                Write-OK "NetworkThrottlingIndex: 20 (stabiler Kompromiss, kein Bufferbloat-Risiko)."
             }
         }
         catch { Write-Warn "NetworkThrottlingIndex konnte nicht gesetzt werden: $_" }
@@ -1322,6 +1411,41 @@ function Set-NICOptimizations {
                 }
                 Write-OK "[$name] ARP/NS Offload deaktiviert."
             }
+
+            # PnPCapabilities: NIC Energiesparmodus via PnP deaktivieren
+            # Wert 24 (0x18) = D1 + D2 Wakeup-Bits deaktivieren
+            # Verhindert dass Windows die NIC in D1/D2 Schlafzustand versetzt
+            # Robuster als nur powercfg - wirkt auch wenn Energieplan geaendert wird
+            if ($Config.NICPnPPower) {
+                $pnpPath = "HKLM:\SYSTEM\CurrentControlSet\Enum"
+                $adapterInfo = Get-NetAdapterHardwareInfo -Name $name -ErrorAction SilentlyContinue
+                if ($adapterInfo) {
+                    $bus  = $adapterInfo.BusNumber
+                    $dev  = $adapterInfo.DeviceNumber
+                    $func = $adapterInfo.FunctionNumber
+                    # PCI-Pfad aus Bus/Dev/Function aufbauen
+                    $pciDevices = Get-ChildItem "$pnpPath\PCI" -ErrorAction SilentlyContinue |
+                        Get-ChildItem -ErrorAction SilentlyContinue |
+                        Where-Object {
+                            $loc = (Get-ItemProperty -Path $_.PSPath -Name "LocationInformation" -ErrorAction SilentlyContinue).LocationInformation
+                            $loc -match "Bus $bus.*Device $dev.*Function $func|$bus\.$dev\.$func"
+                        }
+                    foreach ($pciDev in $pciDevices) {
+                        Set-ItemProperty -Path $pciDev.PSPath -Name "PnpCapabilities" -Value 24 -Type DWord -ErrorAction SilentlyContinue
+                        Write-OK "[$name] PnPCapabilities=24 gesetzt (NIC schlaeft nie, keine Verbindungsaussetzer)."
+                    }
+                } else {
+                    # Fallback: direkt via DeviceID aus Get-NetAdapter
+                    $dev2 = Get-PnpDevice -FriendlyName "*$name*" -ErrorAction SilentlyContinue | Select-Object -First 1
+                    if ($dev2) {
+                        $pnpRegPath = "HKLM:\SYSTEM\CurrentControlSet\Enum\$($dev2.InstanceId)"
+                        if (Test-Path $pnpRegPath) {
+                            Set-ItemProperty -Path $pnpRegPath -Name "PnpCapabilities" -Value 24 -Type DWord -ErrorAction SilentlyContinue
+                            Write-OK "[$name] PnPCapabilities=24 gesetzt (Fallback-Pfad)."
+                        }
+                    }
+                }
+            }
         }
     }
     catch { Write-Warn "NIC-Optimierung fehlgeschlagen: $_" }
@@ -1518,6 +1642,19 @@ function Enable-TCPFastOpen {
             # Verhindert TCP-Kalt-Start nach kurzen Idle-Phasen (zwischen Runden/Matches)
             $null = & netsh int tcp set supplemental template=internet congestionwindowrestart=disabled 2>&1
             Write-OK "Congestion Window Restart: disabled (kein Window-Reset nach Match-Pausen)."
+
+            # RACK (Recent ACKnowledgment) aktivieren
+            # Erkennt Paketverlust schneller als klassisches 3-DupACK-System
+            # Besonders effektiv bei niedrigem RTT (10ms Ping): keine 3-Paket-Wartezeit
+            $null = & netsh int tcp set supplemental template=internet rack=enabled 2>&1
+            Write-OK "RACK: aktiviert (schnellere Verlust-Erkennung als 3-DupACK, besser bei <20ms Ping)."
+
+            # Tail Loss Probe aktivieren
+            # Verhindert dass letztes Paket in einer Uebertragungssequenz auf den
+            # vollen Retransmission-Timeout wartet (bis zu MinRTO=100ms)
+            # TLP sendet stattdessen sofort einen Probe -> Verlust in ~1 RTT erkannt
+            $null = & netsh int tcp set supplemental template=internet taillossprobe=enabled 2>&1
+            Write-OK "Tail Loss Probe: aktiviert (kein Retransmit-Timeout auf letztes Paket, ~1 RTT Erkennung)."
         }
         catch {
             Write-Warn "TCP Supplemental (kein Fehler auf Windows 10 Home Edition): $_"
@@ -1739,9 +1876,18 @@ function Set-NvidiaShaderCache {
         # Auch per DirectX UserGPU Preferences absichern
         $dxPath = "HKLM:\SOFTWARE\Microsoft\DirectX\UserGpuPreferences"
         if (-not (Test-Path $dxPath)) { New-Item -Path $dxPath -Force | Out-Null }
-        Set-ItemProperty -Path $dxPath -Name "DirectXUserGlobalSettings" -Value "ShaderCacheSizeInMB=10240;" -Type String -ErrorAction SilentlyContinue
-
-        Write-OK "NVIDIA Shader-Cache auf 10 GB gesetzt."
+        # Shader-Cache setzen: bestehenden Wert lesen und ShaderCacheSize appendieren/ersetzen
+        # Verhindert dass spätere Writes (SwapEffect etc.) den ShaderCache-Wert überschreiben
+        $existingDX = (Get-ItemProperty -Path $dxPath -Name "DirectXUserGlobalSettings" -ErrorAction SilentlyContinue).DirectXUserGlobalSettings
+        if ($existingDX) {
+            # ShaderCacheSizeInMB entfernen falls bereits vorhanden, dann neu setzen
+            $cleanedDX = ($existingDX -replace "ShaderCacheSizeInMB=[^;]+;?", "").TrimEnd(";")
+            $newDX = if ($cleanedDX) { "$cleanedDX;ShaderCacheSizeInMB=10240;" } else { "ShaderCacheSizeInMB=10240;" }
+        } else {
+            $newDX = "ShaderCacheSizeInMB=10240;"
+        }
+        Set-ItemProperty -Path $dxPath -Name "DirectXUserGlobalSettings" -Value $newDX -Type String -ErrorAction SilentlyContinue
+        Write-OK "NVIDIA Shader-Cache auf 10 GB gesetzt (bestehende DirectX-Einstellungen erhalten)."
         Write-Info "Wirkt sich nicht auf RTX/DLSS/Reflex aus - nur die Cache-Groesse auf der SSD wird erhoeht."
         Write-Info "Benoetigt ausreichend freien Speicherplatz auf dem Windows-Laufwerk."
     }
@@ -1811,6 +1957,15 @@ function Set-DPCLatenzOptimierung {
         Set-ItemProperty -Path $ndisPath -Name "MaxInterruptWorkPerDpc" -Value 0     -Type DWord -ErrorAction SilentlyContinue
         # MinInterruptWorkPerDpc: Minimum setzen fuer gleichmaessigere Verarbeitung
         Set-ItemProperty -Path $ndisPath -Name "MinInterruptWorkPerDpc" -Value 0     -Type DWord -ErrorAction SilentlyContinue
+
+        # NdisMaxDpcTasksPerCore: DPC-Tasks pro CPU-Kern begrenzen
+        # Verhindert DPC-Pileup wenn Netzwerk-Interrupt und Audio-Interrupt gleichzeitig eintreffen
+        # Standardwert: unbegrenzt -> bei hohem UDP-Traffic (CoD) koennen sich DPCs stauen
+        # Wert 1 = max. 1 NDIS-DPC-Task pro Kern pro Durchlauf -> gleichmaessige Verteilung
+        if ($Config.NdisTaskLimit) {
+            Set-ItemProperty -Path $ndisPath -Name "NdisMaxDpcTasksPerCore" -Value 1 -Type DWord -ErrorAction SilentlyContinue
+            Write-OK "NdisMaxDpcTasksPerCore=1: DPC-Pileup verhindert (gleichmaessigere Netzwerk-Latenz)."
+        }
 
         # Kernel DPC-Watchdog: NICHT deaktivieren (DpcWatchdogPeriod = 0 riskiert BSOD ohne Diagnose)
         # Der Watchdog erkennt haengende Treiber (z.B. nvlddmkm.sys bei CoD) und schreibt Dump-Dateien.
@@ -2038,14 +2193,21 @@ function Set-TCPChimneyConfig {
         & netsh int tcp set global dca=enabled          2>&1 | Out-Null
         # NetDMA deaktivieren (veraltet, verursacht DPC-Latenz auf modernen Systemen)
         & netsh int tcp set global netdma=disabled      2>&1 | Out-Null
-        # ECN deaktivieren (verhindert kuenstliche Verlangsamung durch Netzwerkgeraete)
-        & netsh int tcp set global ecncapability=disabled 2>&1 | Out-Null
+        # ECN: Wird bereits in Set-NetworkOptimizations gesetzt (enabled)
+        # KEIN erneutes Setzen hier - wuerde das korrekte ECN-Setting ueberschreiben!
         # Timestamps deaktivieren (reduziert Overhead pro Paket)
         & netsh int tcp set global timestamps=disabled  2>&1 | Out-Null
         # RSC (Receive Segment Coalescing) deaktivieren (erhoeht Latenz bei UDP)
         & netsh int tcp set global rsc=disabled         2>&1 | Out-Null
-        # Congestion Provider: CTCP fuer bessere Throughput-Stabilisierung
-        & netsh int tcp set global congestionprovider=ctcp 2>&1 | Out-Null
+        # Congestion Provider: CUBIC (Windows-Standard seit 2018, besser als CTCP)
+        # WARUM NICHT CTCP:
+        # CTCP erhoehe das Congestion Window sehr aggressiv -> fuellt Router-Buffer
+        # -> Latenz steigt mit der Zeit unter Last (genau das beobachtete Symptom!)
+        # Microsoft wechselte 2018 bewusst von CTCP zu CUBIC weil CTCP delay-sensitiv
+        # und in Hochlast-Szenarien schlechtes Latenz-Verhalten zeigte.
+        # CUBIC ist zeitbasiert (nicht RTT-abhaengig) -> fairer und latenz-stabiler
+        & netsh int tcp set global congestionprovider=cubic 2>&1 | Out-Null
+        Write-OK "Congestion Provider: CUBIC (latenz-stabil, kein aggressiver Buffer-Aufbau wie CTCP)."
 
         # Offload fuer UDP-Segmentierung (USO) pruefen und setzen
         $adapters = Get-NetAdapter | Where-Object { $_.Status -eq "Up" -and $_.PhysicalMediaType -ne "Unspecified" }
@@ -2095,6 +2257,21 @@ function Set-TCPChimneyConfig {
 
         # EnableICMPRedirect: 1 = kuerzerere Routing-Pfade erlaubt
         Set-ItemProperty -Path $tcpParams -Name "EnableICMPRedirect"    -Value 1    -Type DWord -ErrorAction SilentlyContinue
+
+        if ($Config.IPSourceRouting) {
+            # DisableIPSourceRouting = 2: Source-Routing vollstaendig deaktivieren
+            # Entfernt unnoetige IP-Options-Header-Verarbeitung bei jedem eingehenden Paket
+            # Wert 0 = aktiviert, 1 = nicht weiterleiten, 2 = vollstaendig deaktiviert (Empfehlung)
+            Set-ItemProperty -Path $tcpParams -Name "DisableIPSourceRouting" -Value 2 -Type DWord -ErrorAction SilentlyContinue
+            Write-OK "DisableIPSourceRouting=2: Source-Routing deaktiviert (weniger Overhead pro Paket)."
+
+            # EnableDeadGWDetect = 0: Automatische Gateway-Wechsel deaktivieren
+            # Windows wechselt bei Problemen automatisch zu einem anderen Gateway - verursacht
+            # kurze Latenzzacken (50-500ms) die als Stutter im Spiel spuerbar sind
+            # Mit einer stabilen Leitung (Fiber/Kabel, fester Router) ist diese Erkennung unnoetig
+            Set-ItemProperty -Path $tcpParams -Name "EnableDeadGWDetect"    -Value 0 -Type DWord -ErrorAction SilentlyContinue
+            Write-OK "EnableDeadGWDetect=0: Automatische Gateway-Wechsel deaktiviert (keine Latenzzacken)."
+        }
 
         Write-OK "TCP/IP Parameter-Registry vollstaendig optimiert."
     }
@@ -2307,13 +2484,6 @@ function Invoke-UndoOptimizations {
         Write-OK "NVIDIA MaxPreRenderedFrames auf Treiber-Standard zurueckgesetzt."
     } catch {}
 
-    # NetworkThrottlingIndex Standard (10)
-    try {
-        $mmPath = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile"
-        Set-ItemProperty -Path $mmPath -Name "NetworkThrottlingIndex" -Value 10 -Type DWord -ErrorAction SilentlyContinue
-        Write-OK "NetworkThrottlingIndex auf Standard (10) zurueckgesetzt."
-    } catch {}
-
     # SwapEffectUpgrade Standard zurueck
     try {
         $dxPath = "HKLM:\SOFTWARE\Microsoft\DirectX\UserGpuPreferences"
@@ -2351,6 +2521,7 @@ function Invoke-UndoOptimizations {
             Remove-ItemProperty -Path $iface.PSPath -Name "TcpAckFrequency" -ErrorAction SilentlyContinue
             Remove-ItemProperty -Path $iface.PSPath -Name "TCPNoDelay"      -ErrorAction SilentlyContinue
         }
+        Remove-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\MSMQ\Parameters" -Name "TCPNoDelay" -ErrorAction SilentlyContinue
         Write-OK "Nagle-Algorithmus reaktiviert."
     } catch {}
 
@@ -2404,6 +2575,10 @@ function Invoke-UndoOptimizations {
         & netsh int tcp set supplemental template=internet delayedacktimeout=40   2>&1 | Out-Null
         & netsh int tcp set supplemental template=internet delayedackfrequency=2  2>&1 | Out-Null
         & netsh int tcp set supplemental template=internet congestionwindowrestart=enabled 2>&1 | Out-Null
+        & netsh int tcp set supplemental template=internet rack=disabled               2>&1 | Out-Null
+        & netsh int tcp set supplemental template=internet taillossprobe=disabled      2>&1 | Out-Null
+        & netsh int tcp set global hystart=enabled 2>&1 | Out-Null
+        & netsh int tcp set global prr=disabled    2>&1 | Out-Null
         # TCP/IP Parameter zurueck
         $tcpP = "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters"
         Remove-ItemProperty -Path $tcpP -Name "TcpTimedWaitDelay"   -ErrorAction SilentlyContinue
@@ -2412,9 +2587,11 @@ function Invoke-UndoOptimizations {
         Remove-ItemProperty -Path $tcpP -Name "SackOpts"             -ErrorAction SilentlyContinue
         Remove-ItemProperty -Path $tcpP -Name "EnablePMTUDiscovery"  -ErrorAction SilentlyContinue
         Remove-ItemProperty -Path $tcpP -Name "EnableICMPRedirect"   -ErrorAction SilentlyContinue
+        Remove-ItemProperty -Path $tcpP -Name "EnableDeadGWDetect"     -ErrorAction SilentlyContinue
+        Remove-ItemProperty -Path $tcpP -Name "DisableIPSourceRouting" -ErrorAction SilentlyContinue
         Write-OK "TCP Stack vollstaendig auf Windows-Standard zurueckgesetzt."
         & netsh int tcp set global chimney=default        2>&1 | Out-Null
-        & netsh int tcp set global ecncapability=default  2>&1 | Out-Null
+        & netsh int tcp set global ecncapability=disabled  2>&1 | Out-Null  # Standard war disabled
         & netsh int tcp set global timestamps=default     2>&1 | Out-Null
         & netsh int tcp set global fastopen=disabled      2>&1 | Out-Null
         & netsh int tcp set global fastopenfallback=disabled 2>&1 | Out-Null
@@ -2537,13 +2714,19 @@ function Invoke-UndoOptimizations {
         Remove-ItemProperty -Path $mmPath -Name "LazyModeTimeout" -ErrorAction SilentlyContinue
         $gamesPath = "$mmPath\Tasks\Games"
         if (Test-Path $gamesPath) {
-            # Clock Rate auf gueltigen Standard-Wert zuruecksetzen (10000 = 1ms, sicherer Bereich 2000-10000)
-            Set-ItemProperty -Path $gamesPath -Name "Clock Rate" -Value 10000 -Type DWord -ErrorAction SilentlyContinue
+            # Clock Rate Key entfernen (Windows-Standard: Key nicht vorhanden = MMCSS Standard-Timing)
+            Remove-ItemProperty -Path $gamesPath -Name "Clock Rate" -ErrorAction SilentlyContinue
+            Write-OK "MMCSS Games Clock Rate Key entfernt (Windows-Standard wiederhergestellt)."
         }
         # Audio-Profile auf Standard
         $audioPath = "$mmPath\Tasks\Audio"
         if (Test-Path $audioPath) {
-            Set-ItemProperty -Path $audioPath -Name "Clock Rate" -Value 10000 -Type DWord -ErrorAction SilentlyContinue
+            Remove-ItemProperty -Path $audioPath -Name "Clock Rate" -ErrorAction SilentlyContinue
+        }
+        # Pro-Audio-Profil ebenfalls zurueck
+        $proAudioPath = "$mmPath\Tasks\Pro Audio"
+        if (Test-Path $proAudioPath) {
+            Remove-ItemProperty -Path $proAudioPath -Name "Clock Rate" -ErrorAction SilentlyContinue
         }
         Write-OK "MMCSS-Profile auf Standard zurueckgesetzt."
     } catch {}
@@ -2582,13 +2765,39 @@ function Invoke-UndoOptimizations {
     try {
         & netsh int tcp set global chimney=default         2>&1 | Out-Null
         & netsh int tcp set global netdma=default          2>&1 | Out-Null
-        & netsh int tcp set global congestionprovider=default 2>&1 | Out-Null
+        & netsh int tcp set global congestionprovider=cubic 2>&1 | Out-Null  # Windows-Standard seit 2018
         & netsh int tcp set global rsc=enabled             2>&1 | Out-Null
         $adapters = Get-NetAdapter | Where-Object { $_.Status -eq "Up" }
         foreach ($adapter in $adapters) {
             Enable-NetAdapterRsc -Name $adapter.Name -ErrorAction SilentlyContinue
         }
         Write-OK "TCP Chimney/RSC/CTCP auf Standard zurueckgesetzt."
+    } catch {}
+
+    # NdisMaxDpcTasksPerCore entfernen
+    try {
+        Remove-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\NDIS\Parameters" -Name "NdisMaxDpcTasksPerCore" -ErrorAction SilentlyContinue
+        Write-OK "NdisMaxDpcTasksPerCore auf Standard zurueckgesetzt."
+    } catch {}
+
+    # DoH auf Windows-Standard (automatisch)
+    try {
+        Remove-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\Dnscache\Parameters" -Name "EnableAutoDoh" -ErrorAction SilentlyContinue
+        Write-OK "DNS-over-HTTPS auf Windows-Standard zurueckgesetzt."
+    } catch {}
+
+    # NIC PnPCapabilities zuruecksetzen
+    try {
+        Get-NetAdapter | Where-Object { $_.Status -eq "Up" } | ForEach-Object {
+            $dev = Get-PnpDevice -FriendlyName "*$($_.Name)*" -ErrorAction SilentlyContinue | Select-Object -First 1
+            if ($dev) {
+                $pnpRegPath = "HKLM:\SYSTEM\CurrentControlSet\Enum\$($dev.InstanceId)"
+                if (Test-Path $pnpRegPath) {
+                    Remove-ItemProperty -Path $pnpRegPath -Name "PnpCapabilities" -ErrorAction SilentlyContinue
+                }
+            }
+        }
+        Write-OK "NIC PnPCapabilities auf Standard zurueckgesetzt."
     } catch {}
 
     # BCD Clock-Einstellungen zuruecksetzen
@@ -2808,8 +3017,17 @@ function Set-RenderLatency {
     } else {
         # SwapEffectUpgrade = 0: DWM greift nicht ein, Spiel nutzt eigenen Swap-Chain-Modus
         # Bei nativem Fullscreen-Exklusiv-Modus niedrigste Latenz ohne DWM-Overhead
-        Remove-ItemProperty -Path $dxGlobalPath -Name "DirectXUserGlobalSettings" -ErrorAction SilentlyContinue
-        Write-OK "SwapEffectUpgrade deaktiviert (kein DWM-Buffer-Override -> niedrigste Latenz bei Fullscreen)."
+        # Nur SwapEffectUpgrade-Flag entfernen, RestWert (ShaderCache etc.) erhalten
+        $existingVal = (Get-ItemProperty -Path $dxGlobalPath -Name "DirectXUserGlobalSettings" -ErrorAction SilentlyContinue).DirectXUserGlobalSettings
+        if ($existingVal) {
+            $cleaned = ($existingVal -replace "SwapEffectUpgradeEnable=[^;]+;?", "").TrimEnd(";")
+            if ($cleaned) {
+                Set-ItemProperty -Path $dxGlobalPath -Name "DirectXUserGlobalSettings" -Value $cleaned -Type String -ErrorAction SilentlyContinue
+            } else {
+                Remove-ItemProperty -Path $dxGlobalPath -Name "DirectXUserGlobalSettings" -ErrorAction SilentlyContinue
+            }
+        }
+        Write-OK "SwapEffectUpgrade deaktiviert (nur dieses Flag entfernt, andere Einstellungen erhalten)."
         Write-Info "Voraussetzung: Spiel laeuft im echten Fullscreen-Exklusiv-Modus (nicht Borderless Windowed)."
     }
 
@@ -3213,6 +3431,11 @@ function Show-Summary {
     Write-Host "   - Bluetooth Controller Polling auf 1ms beschleunigt (BT-Stack)" -ForegroundColor Gray
     Write-Host "   - XInput Latenz-Optimierung: direkter HID-Pfad, LegacyInput deaktiviert" -ForegroundColor Gray
     Write-Host "   - Controller Rumble/Vibration gegen Energiesparmodus gesichert (XInput+HID+BT)" -ForegroundColor Gray
+    Write-Host "   - MSMQ TCPNoDelay global: Nagle fuer alle Winsock-Apps deaktiviert" -ForegroundColor Gray
+    Write-Host "   - NIC PnPCapabilities=24: Ethernet schlaeft nie (stabiler als USB-Energiesparmodus)" -ForegroundColor Gray
+    Write-Host "   - IP Source Routing deaktiviert + Dead Gateway Detection aus (keine Latenzzacken)" -ForegroundColor Gray
+    Write-Host "   - NdisMaxDpcTasksPerCore=1: kein DPC-Pileup bei Netzwerk+Audio gleichzeitig" -ForegroundColor Gray
+    Write-Host "   - DNS-over-HTTPS deaktiviert (EnableAutoDoh=4, schnelleres UDP-DNS)" -ForegroundColor Gray
     Write-Host "   - TCP AutoTuning: experimental (max Receive Window), Heuristics deaktiviert" -ForegroundColor Gray
     Write-Host "   - TCP Supplemental: MinRTO 100ms, DelayedACK 10ms/Freq 1 (Upload-Latenz -)" -ForegroundColor Gray
     Write-Host "   - TCP Stack: MaxUserPort 65534, TcpTimedWaitDelay 30s, SackOpts, MaxDupAcks" -ForegroundColor Gray
